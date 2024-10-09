@@ -1,0 +1,6 @@
+[*.cs]
+# C# brace style - place opening braces on the same line
+csharp_new_line_before_open_brace = none
+
+# Optional: Ensure the file is formatted on save
+dotnet_style_prefer_braces = true:suggestion
