@@ -43,4 +43,6 @@ public abstract class Character : MonoBehaviour {
 
     public abstract void Move();
     public abstract void Interact();
+    public abstract void Attack();
+    public abstract void Defend();
 }
