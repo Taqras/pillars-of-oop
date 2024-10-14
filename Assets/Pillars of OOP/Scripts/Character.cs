@@ -6,7 +6,7 @@ using UnityEngine;
 public abstract class Character : MonoBehaviour {
 
     // Speed is protected and initialized with a default value
-    protected float Speed { get; private set; } = 3f;  // Default speed, can be overridden in derived classes
+    protected float Speed { get; private set; } = 2f;  // Default speed, can be overridden in derived classes
 
     // Encapsulated Name: Only allow setting the name once
     private string characterName;

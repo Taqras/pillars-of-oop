@@ -17,7 +17,7 @@ public class GameManager : MonoBehaviour {
     }
 
     private void StartGame() {
-        int selectedPlayerIndex = 0; // Assuming player selection logic here
+        int selectedPlayerIndex = 1; // Assuming player selection logic here
 
         SetActivePlayer(selectedPlayerIndex);
 
@@ -27,7 +27,6 @@ public class GameManager : MonoBehaviour {
     }
 
     public void SetActivePlayer(int index) {
-
         for (int i = 0; i < players.Length; i++) {
             players[i].GetComponent<Player>().Activation(i == index);
         }

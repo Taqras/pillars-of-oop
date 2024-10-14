@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Player : Character {
 
-    private CharacterController controller;
+    private CharacterController characterController;
     private Animator animator;
     public bool isActive = false;  // Indicates if this player is currently active
 
@@ -18,18 +18,39 @@ public class Player : Character {
     private bool isCombatReady = false;
     private Transform target;
 
+    private float jumpForce = 8f;         // The force applied when jumping (adjust as needed)
+    private float gravity = 20f;          // Gravity force applied when the character is not grounded
+    private float verticalVelocity = 0f;  // Tracks the vertical velocity of the character
+
+    public CharacterConfig characterConfig; // Reference to the Scriptable Object
+
     private void Start() {
-        controller = GetComponent<CharacterController>();
+        characterController = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
+
+        // Use the value from CharacterConfig to set the animator parameter
+            if (characterConfig != null)
+            {
+                Debug.Log($"{gameObject.name} is adjusting walk and run animation by {characterConfig.walkPlaybackSpeed} and {characterConfig.runPlaybackSpeed}");
+                animator.SetFloat("WalkPlaybackSpeed", characterConfig.walkPlaybackSpeed);
+                animator.SetFloat("RunPlaybackSpeed", characterConfig.runPlaybackSpeed);
+            }
 
         SetHealth(100);  // Initial health for the player
 
-        // Optionally override speed programmatically if needed
-        // Speed = 3f;
+    }
+
+    private void FixedUpdate() {
+        if (isActive) {
+            Move();
+        }
     }
 
     private void Update() {
         if (isActive) {
+
+            animator.SetBool("isGrounded", characterController.isGrounded);
+
             if (Input.GetKeyDown(KeyCode.Tab)) {
                 if (isCombatReady) {
                     ExitFocusMode();
@@ -56,9 +77,19 @@ public class Player : Character {
                 }
             }
 
+            if (Input.GetKeyDown(KeyCode.Tab)) {
+                if (isCombatReady) {
+                    ExitFocusMode();
+                } else {
+                    EnterFocusMode();
+                }
+            }
 
-
-            Move();
+            if (Input.GetKeyDown(KeyCode.Space) && characterController.isGrounded) {
+                Debug.Log("Jumping");
+                animator.SetTrigger("jumpTrigger");
+                verticalVelocity = jumpForce;  // Apply jump force when the jump starts
+            }
         }
     }
     
@@ -69,7 +100,6 @@ public class Player : Character {
     public override void Move() {
 
         // Specific movement for Player
-        // Player movement logic using input
         float horizontal = Input.GetAxis("Horizontal");  // A/D or Left/Right arrows
         float vertical = Input.GetAxis("Vertical");      // W/S or Up/Down arrows
 
@@ -79,25 +109,30 @@ public class Player : Character {
             transform.Rotate(Vector3.up, horizontal * rotationSpeed * Time.deltaTime);
         }
 
-        // Move the player forward/backward based on vertical input (W/S)
+        // Calculate the movement direction
         Vector3 direction = transform.forward * vertical;
-        float inputMagnitude = Mathf.Abs(vertical);
+        direction = direction.normalized * Speed;
 
-        // Set the Speed parameter in the Animator to trigger walking animations
+        // Apply gravity when character is not grounded
+        if (characterController.isGrounded && verticalVelocity < 0) {
+            // If grounded and falling, reset vertical velocity to a small value to stay grounded
+            verticalVelocity = -1f;  // A small negative value to ensure the character stays grounded
+        } else {
+            // Apply gravity if character is in the air
+            verticalVelocity -= gravity * Time.deltaTime;
+        }
+
+        // Add vertical velocity to the movement direction (gravity or jump)
+        direction.y = verticalVelocity;
+
+        // Apply movement to the Character Controller to move the player
+        characterController.Move(direction * Time.deltaTime);
+
+        // Calculate input magnitude based on vertical movement (used for animations)
+        float inputMagnitude = Mathf.Abs(vertical);  // The value will be between 0 (idle) and 1 (full speed)
+
+        // Set the Speed parameter in the Animator to control walking/running animations
         animator.SetFloat("Speed", inputMagnitude);
-
-/*         if (inputMagnitude >= 0.1f) {
-
-            // Rotate the player towards the movement direction
-            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
-            transform.rotation = Quaternion.Euler(0, targetAngle, 0);
-
-            // Apply movement to the CharacterController to move the player forward
-            controller.Move(direction * Speed * Time.deltaTime);  // Use Move() for full control of movement
-        } */
-        
-        // Apply movement to the CharacterController to move the player forward/backward
-        controller.Move(direction * Speed * Time.deltaTime);
 
     }
     
@@ -106,13 +141,10 @@ public class Player : Character {
     {
         isActive = active;
 
-        if (isActive)
-        {
-            // animator.SetTrigger("Activate"); // Trigger an activation animation
+        if (isActive) {
             Debug.Log($"{gameObject.name} is now active.");
         }
-        else
-        {
+        else {
             Debug.Log($"{gameObject.name} is now inactive.");
         }
     }
@@ -152,6 +184,19 @@ public class Player : Character {
     public void SelectTarget(Transform newTarget) {
         target = newTarget;
         // Placeholder for focusing on a target (e.g., enemy, NPC, or item)
+    }
+
+    void OnDrawGizmosSelected() {
+    CharacterController characterController = GetComponent<CharacterController>();
+    if (characterController != null) {
+        // Calculate bottom center position
+        float bottomCenterY = transform.position.y + characterController.center.y - (characterController.height / 2) + characterController.radius;
+        Vector3 bottomCenterPosition = new Vector3(transform.position.x, bottomCenterY, transform.position.z);
+
+        // Draw a red sphere to visualize the bottom center
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawSphere(bottomCenterPosition, 0.05f);
+    }
     }
 
 }

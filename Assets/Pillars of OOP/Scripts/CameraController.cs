@@ -67,24 +67,11 @@ public class CameraController : MonoBehaviour {
         } else if (followPlayer && player != null) {
 
             if (isCombatFocused) {
+
                 // In combat focus mode, the camera always looks at the player
                 transform.LookAt(player.position + Vector3.up * 1.5f);
-            } else if (isFreeLook) {
-                // Orbit around the player based on yaw
-/*                 Quaternion rotation = freeLookInitRotation * Quaternion.Euler(0f, freeLookYaw, 0f);
-                Vector3 desiredPosition = player.position + rotation * followOffset;
-                Quaternion desiredRotation = Quaternion.Euler(freeLookPitch, transform.eulerAngles.y, 0f);
-
-                if (Mathf.Abs(freeLookYaw) > 0.01f || Mathf.Abs(freeLookPitch) > 0.01f) {
-                    transform.position = Vector3.Lerp(transform.position, desiredPosition, followSpeed * Time.deltaTime);
-                    transform.rotation = Quaternion.Slerp(transform.rotation, desiredRotation, followRotationSpeed * Time.deltaTime);
-                } else {
-                    transform.position = desiredPosition;
-                    transform.rotation = desiredRotation;
-                }
                 
-                transform.LookAt(player.position + Vector3.up * 1.5f);
- */                
+            } else if (isFreeLook) {
                 
                 // Calculate rotation using yaw and pitch
                 Quaternion rotation = Quaternion.Euler(freeLookPitch, freeLookYaw, 0f);
@@ -97,8 +84,8 @@ public class CameraController : MonoBehaviour {
                 transform.position = Vector3.Lerp(transform.position, desiredPosition, followSpeed * Time.deltaTime);
                 transform.LookAt(player.position + Vector3.up * 1.5f);
 
-
             } else {
+
                 // Always update the position behind the player with the given offset
                 Vector3 targetPosition = player.position + player.rotation * followOffset;
                 // transform.position = Vector3.Lerp(transform.position, targetPosition, followSpeed * Time.deltaTime);
