@@ -14,3 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   walkPlaybackSpeed: 1
   runPlaybackSpeed: 1
+  characterName: A male elf
+  description: 'He looks sly and devious. He might surprise you. '

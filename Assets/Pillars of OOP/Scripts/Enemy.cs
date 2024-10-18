@@ -3,12 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class Enemy : Character {
-    // Implement health in the derived class
-    public override int Health { get; protected set; }
-
-    private void Start() {
-        SetHealth(100);
-    }
 
     public override void Move() {
         // Specific movement for Enemy
@@ -30,4 +24,15 @@ public class Enemy : Character {
         // Placeholder: Play defense animation, reduce damage, etc.
     }
 
+    public override Dictionary<string, string> GetInfo() {
+        // Start with the base class info
+        var info = base.GetInfo();
+
+        // Optionally, modify or add to the existing information
+        // info[InspectionKey.CharacterName.ToString()] = CharacterName;
+        // info[InspectionKey.Description.ToString()] = Description;
+
+        return info;
+    }
+    
 }

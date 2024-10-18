@@ -3,46 +3,69 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-public abstract class Character : MonoBehaviour {
+public abstract class Character : MonoBehaviour, IInspectable {
 
     // Speed is protected and initialized with a default value
-    protected float Speed { get; private set; } = 2f;  // Default speed, can be overridden in derived classes
+    private float speed = 2f; // Backing field for speed, defaults to something sensible
+    public virtual float Speed {
+        get => speed;
+        protected set => speed = value; // Correct syntax
+    }
 
-    // Encapsulated Name: Only allow setting the name once
-    private string characterName;
-    public string CharacterName {
-        get { return characterName; }
+    // Encapsulated Name: ensure that all derived classes have a name
+    private string characterName = "Unnamed"; // Backing field for name (name is reserved in unity, hence characterName)
+    public virtual string CharacterName {
+        get => characterName;
         protected set {
-            // Only allow setting the name if it hasn't been set yet
-            if (string.IsNullOrEmpty(characterName)) {
+            if (!string.IsNullOrEmpty(value)) {
                 characterName = value;
             } else {
-                Debug.LogError("Name has already been set and cannot be changed.");
+                Debug.LogError("Name cannot be empty.");
             }
         }
     }
 
-    // Abstract property for health; derived classes must define it
-    public abstract int Health { get; protected set; }
+    public string Description { get; protected set; } = "No description available."; // Default description
 
-    // Controlled way to set health
-    protected void SetHealth(int newHealth) {
-        if (newHealth >= 0) {
-            Health = newHealth;
-        } else {
-            Debug.LogError("Health cannot be negative.");
+    private int health = 0; // Backing field for health, defaults to dead
+    public virtual int Health {
+        get => health;
+        protected set {
+            if (value >= 0) {
+                health = value;
+            } else {
+                Debug.LogError("Health cannot be negative.");
+            }
         }
+    }
+
+    private int experience = 0; // Backing field for experience, defaults to 0
+    public virtual int Experience {
+        get => experience;
+        protected set {
+            if (value >= 0) {
+                experience = value;
+            } else {
+                Debug.LogError("Experience cannot be negative.");
+            }
+        }
+    }
+
+
+    public virtual Dictionary<string, string> GetInfo() {
+        var info = new Dictionary<string, string>
+        {
+            { InspectionKey.Name.ToString(), CharacterName },
+            { InspectionKey.Description.ToString(), Description }
+        };
+
+        return info;
     }
 
     // Example method for managing health safely
-    public void TakeDamage(int damage) {
-        if (damage >= 0) {
-            SetHealth(Mathf.Max(Health - damage, 0));  // Ensure health doesn't go below 0
-        }
-    }
-
     public abstract void Move();
     public abstract void Interact();
     public abstract void Attack();
     public abstract void Defend();
+
 }

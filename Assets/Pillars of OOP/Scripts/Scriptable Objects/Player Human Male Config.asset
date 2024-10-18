@@ -12,5 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7c799e32491c586aa7e3945ff032e11, type: 3}
   m_Name: Player Human Male Config
   m_EditorClassIdentifier: 
-  walkPlaybackSpeed: 1
-  runPlaybackSpeed: 1
+  walkPlaybackSpeed: 1.1
+  runPlaybackSpeed: 1.1
+  characterName: A male human
+  description: This one is strong and sturdy. Not to mess with.

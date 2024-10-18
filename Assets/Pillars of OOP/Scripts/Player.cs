@@ -1,21 +1,14 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class Player : Character {
-
+    [SerializeField] private UIManager uiManager; // Reference to UIManager assigned in Inspector
+    [SerializeField] private InspectionManager inspectionManager; // Reference to InspectionManager assigned in Inspector
     private CharacterController characterController;
     private Animator animator;
     public bool isActive = false;  // Indicates if this player is currently active
-
-    // Implement health in the derived class
-    public override int Health { get; protected set; }
-    private int experience = 0;
-    public int Experience {
-        get { return experience; }
-        private set { experience = value; }
-    }
-    private bool isCombatReady = false;
     private Transform target;
 
     private float jumpForce = 8f;         // The force applied when jumping (adjust as needed)
@@ -23,10 +16,41 @@ public class Player : Character {
     private float verticalVelocity = 0f;  // Tracks the vertical velocity of the character
 
     public CharacterConfig characterConfig; // Reference to the Scriptable Object
+        // Encapsulated property for combat readiness
+    private bool isCombatReady;
+    public bool IsCombatReady {
+        get => isCombatReady;
+        set {
+            isCombatReady = value;
+            if (isCombatReady) {
+                Debug.Log("Entered focus mode. Click to attack.");
+                // Additional logic for entering combat mode (e.g., draw weapon)
+            } else {
+                Debug.Log("Exited focus mode. Click to inspect.");
+                // Additional logic for exiting combat mode (e.g., sheathe weapon)
+            }
+        }
+    }
 
-    private void Start() {
+
+    private void Awake() {
         characterController = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
+        uiManager = FindObjectOfType<UIManager>(); // Dynamically assign UIManager
+        if (uiManager == null) {
+            Debug.LogError("UIManager not found in the scene. Make sure there's a UIManager in the scene.");
+        }
+        inspectionManager = FindObjectOfType<InspectionManager>(); // Dynamically assign InspectionManager
+        if (inspectionManager == null) {
+            Debug.LogError("InspectionManager not found in the scene. Make sure there's an InspectionManager in the scene.");
+        }
+    }
+
+    private void Start() {
+
+        Health = 100; // needs to be persistent
+        Experience = 100; // needs to be persistent
+        IsCombatReady = false;
 
         // Use the value from CharacterConfig to set the animator parameter
             if (characterConfig != null)
@@ -34,9 +58,9 @@ public class Player : Character {
                 Debug.Log($"{gameObject.name} is adjusting walk and run animation by {characterConfig.walkPlaybackSpeed} and {characterConfig.runPlaybackSpeed}");
                 animator.SetFloat("WalkPlaybackSpeed", characterConfig.walkPlaybackSpeed);
                 animator.SetFloat("RunPlaybackSpeed", characterConfig.runPlaybackSpeed);
+                CharacterName = characterConfig.characterName;
+                Description = characterConfig.description;
             }
-
-        SetHealth(100);  // Initial health for the player
 
     }
 
@@ -52,19 +76,20 @@ public class Player : Character {
             animator.SetBool("isGrounded", characterController.isGrounded);
 
             if (Input.GetKeyDown(KeyCode.Tab)) {
-                if (isCombatReady) {
-                    ExitFocusMode();
-                } else {
-                    EnterFocusMode();
-                }
+                ToggleFocusMode(); // Toggle combat readiness (focus mode) on Tab press
             }
 
             if (Input.GetMouseButtonDown(0)) {
-                if (isCombatReady) {
-                    Attack();
-                } else {
-                    // Select target for inspection
-                    // Placeholder: raycast logic or click handling here
+                Debug.Log($"{gameObject.name} is registering a click...");
+                GameObject target = ObjectSelector.GetClickedObject();
+                if (target != null) {
+                    if (isCombatReady) {
+                        Debug.Log($"{gameObject.name} is attacking");
+                        Attack(target);
+                    } else {
+                        Debug.Log($"{gameObject.name} is inspecting");
+                        inspectionManager.Inspect(target);
+                    }
                 }
             }
 
@@ -77,18 +102,67 @@ public class Player : Character {
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.Tab)) {
-                if (isCombatReady) {
-                    ExitFocusMode();
-                } else {
-                    EnterFocusMode();
-                }
-            }
 
             if (Input.GetKeyDown(KeyCode.Space) && characterController.isGrounded) {
                 Debug.Log("Jumping");
                 animator.SetTrigger("jumpTrigger");
                 verticalVelocity = jumpForce;  // Apply jump force when the jump starts
+            }
+        }
+    }
+
+    private void ToggleFocusMode() {
+    isCombatReady = !isCombatReady; // Toggle the combat readiness flag
+        if (isCombatReady) {
+            Debug.Log("Entered focus mode. Click to attack.");
+        } else {
+            Debug.Log("Exited focus mode. Click to inspect.");
+        }
+    }
+
+    private GameObject GetTarget() {
+
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+
+        Debug.Log("Raycating...");
+        if (Physics.Raycast(ray, out hit)) {
+            Debug.Log("...hit!");
+            return hit.collider.gameObject; // Return the GameObject that was clicked on
+        } else {
+            Debug.Log("...missed");
+        }
+        return null; // If nothing was hit, return null
+    }
+
+
+    private void InspectObject(GameObject target) {
+        if (target != null) {
+            IInspectable inspectable = target.GetComponent<IInspectable>();
+            if (inspectable != null) {
+                // Retrieve information from the model (target object)
+                Dictionary<string, string> info = inspectable.GetInfo();
+
+                // Pass the data to the UIManager to display it
+                if (uiManager != null) {
+                    uiManager.DisplayInfo(info);
+                } else {
+                    Debug.Log("uiManager is null");
+                }
+            } else {
+                Debug.Log("Target has no IInspectable component");
+            }
+        } else {
+            Debug.Log("Target is null");
+        }
+    }
+
+    private void Attack(GameObject target) {
+        if (target != null) {
+            IInspectable inspectable = target.GetComponent<IInspectable>();
+            if (inspectable != null) {
+                // Implement attack logic here
+                Debug.Log($"Attacking target: {inspectable.GetInfo()}");
             }
         }
     }
@@ -187,16 +261,27 @@ public class Player : Character {
     }
 
     void OnDrawGizmosSelected() {
-    CharacterController characterController = GetComponent<CharacterController>();
-    if (characterController != null) {
-        // Calculate bottom center position
-        float bottomCenterY = transform.position.y + characterController.center.y - (characterController.height / 2) + characterController.radius;
-        Vector3 bottomCenterPosition = new Vector3(transform.position.x, bottomCenterY, transform.position.z);
+        CharacterController characterController = GetComponent<CharacterController>();
+        if (characterController != null) {
+            // Calculate bottom center position
+            float bottomCenterY = transform.position.y + characterController.center.y - (characterController.height / 2) + characterController.radius;
+            Vector3 bottomCenterPosition = new Vector3(transform.position.x, bottomCenterY, transform.position.z);
 
-        // Draw a red sphere to visualize the bottom center
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawSphere(bottomCenterPosition, 0.05f);
+            // Draw a red sphere to visualize the bottom center
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawSphere(bottomCenterPosition, 0.05f);
+        }
     }
+ 
+    public override Dictionary<string, string> GetInfo() {
+        // Start with the base class info
+        var info = base.GetInfo();
+
+        // Optionally, modify or add to the existing information
+        info[InspectionKey.Name.ToString()] = CharacterName;
+        info[InspectionKey.Description.ToString()] = Description;
+
+        return info;
     }
 
 }
