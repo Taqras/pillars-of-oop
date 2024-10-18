@@ -7,5 +7,5 @@ AnimatorOverrideController:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Elf Male Animator Override
-  m_Controller: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: b1787a2943cb858fd8c5631bdcebe226, type: 2}
   m_Clips: []
