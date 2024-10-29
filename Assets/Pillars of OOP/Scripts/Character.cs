@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-public abstract class Character : MonoBehaviour, IInspectable {
+public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInteractable {
+
+    protected CharacterController characterController;
 
     // Speed is protected and initialized with a default value
     private float speed = 2f; // Backing field for speed, defaults to something sensible
@@ -62,10 +64,45 @@ public abstract class Character : MonoBehaviour, IInspectable {
         return info;
     }
 
+    protected void Awake() {
+        Debug.Log($"{gameObject.name} running Character.Awake()");
+        characterController = GetComponent<CharacterController>();
+        if (characterController == null) {
+            Debug.LogError("CharacterController is missing!");
+        } else {
+            Debug.Log("CharacterController is assigned successfully.");
+        }
+    }
+
     // Example method for managing health safely
     public abstract void Move();
     public abstract void Interact();
     public abstract void Attack();
     public abstract void Defend();
+    public abstract void TakeDamage(int damage);
+
+    protected bool IsSteepSlope(Vector3 moveDirection) {
+        if (moveDirection == null) {
+            Debug.Log("moveDirection is null!");
+        }
+        RaycastHit hit;
+        if (Physics.Raycast(transform.position, Vector3.down, out hit, 2.0f)) {
+            float slopeAngle = Vector3.Angle(hit.normal, Vector3.up);
+          
+            // Check if moving downhill (we don't care about uphill)
+            bool isMovingDownhill = Vector3.Dot(moveDirection, hit.normal) > 0;
+
+            // Debugging to understand what's happening
+            // Debug.Log($"Slope Angle: {slopeAngle}, Move Direction: {moveDirection}, Hit Normal: {hit.normal}, Downhill: {isMovingDownhill}");
+
+
+            // Only block downhill movement on steep slopes
+            if (slopeAngle > characterController.slopeLimit && isMovingDownhill) {
+                // Debug.Log($"Slope Angle: {slopeAngle}, Move Direction: {moveDirection}, Hit Normal: {hit.normal}, Downhill: {isMovingDownhill}");
+                return true;
+            }
+        }
+        return false;
+    }
 
 }
