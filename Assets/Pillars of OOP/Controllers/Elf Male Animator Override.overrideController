@@ -8,4 +8,9 @@ AnimatorOverrideController:
   m_PrefabAsset: {fileID: 0}
   m_Name: Elf Male Animator Override
   m_Controller: {fileID: 9100000, guid: b1787a2943cb858fd8c5631bdcebe226, type: 2}
-  m_Clips: []
+  m_Clips:
+  - m_OriginalClip: {fileID: -517674273957482040, guid: 5cc53a90696edc1408fdda805eebb809,
+      type: 3}
+    m_OverrideClip: {fileID: 7400000, guid: 2da926d66cbeaf0f190531c9c6369a60, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 5a3f699e88468c81da9855202d06db02, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: da56a7a3b8e1567dcb328c0d344428e9, type: 2}

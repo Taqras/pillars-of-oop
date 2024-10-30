@@ -8,7 +8,6 @@ public class GameManager : MonoBehaviour {
     [SerializeField] private InspectionManager inspectionManager; // Reference to InspectionManager assigned in Inspector
     public CameraController cameraScript;
     public GameObject[] players; // Array of potential player characters
-    public bool isCombatMode = false; // A global state for managing combat mode
     private bool haveCharacter = false;
     GameObject selectedCharacter;
 
@@ -61,19 +60,6 @@ public class GameManager : MonoBehaviour {
         }
     }
 
-/*     public void OnPlayerClicked(GameObject clickedPlayer) {
-        Player playerComponent = clickedPlayer.GetComponent<Player>();
-        if (playerComponent != null) {
-            Debug.Log("Selected a player: " + playerComponent.name);
-            selectedCharacter = clickedPlayer;
-            inspectionManager.Inspect(selectedCharacter);
-            uiManager.ReadyToSelect(true);  // Enable the character selection button
-        } else {
-            Debug.Log("The clicked object is not a player.");
-            uiManager.ReadyToSelect(false);
-        }
-    } */
-
     private void HandleCharacterSelected() {
         // Call ActivatePlayer when the selection button is clicked
         Debug.Log("Game Manager character selection handling");
@@ -97,18 +83,9 @@ public class GameManager : MonoBehaviour {
         haveCharacter = true;
         cameraScript.AttachToPlayer(selectedPlayer.transform);
 
-        // Hide the character selection UI after activation
+        // Hide the character selection and inspection UI after activation
         uiManager.ShowCharacterSelection(false);
-    }
-
-    public void ToggleCombatMode()
-    {
-        isCombatMode = !isCombatMode;
-        foreach (GameObject player in players) {
-            Player playerComponent = player.GetComponent<Player>();
-            playerComponent.IsCombatReady = isCombatMode; // Set combat mode via encapsulated property
-
-        }
+        uiManager.ShowInspectionPanel(false);
     }
 
 }

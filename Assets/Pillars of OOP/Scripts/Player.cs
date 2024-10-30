@@ -2,39 +2,67 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using System.Linq;
 
 public class Player : Character {
     [SerializeField] private UIManager uiManager; // Reference to UIManager assigned in Inspector
     [SerializeField] private InspectionManager inspectionManager; // Reference to InspectionManager assigned in Inspector
-    private CharacterController characterController;
+    // private CharacterController characterController; defined in the character base class
     private Animator animator;
     public bool isActive = false;  // Indicates if this player is currently active
     private Transform target;
+    private Vector3 mouseLeftDownPosition;   // Used to separate click from click-and-drag
+    private Vector3 mouseRightDownPosition;  // Used to separate click from click-and-drag
+    private float clickThreshold = 0.1f;
 
     private float jumpForce = 8f;         // The force applied when jumping (adjust as needed)
     private float gravity = 20f;          // Gravity force applied when the character is not grounded
     private float verticalVelocity = 0f;  // Tracks the vertical velocity of the character
-
+    private bool isRunning = false;
+    private float walkSpeed = 3f;
+    private float runSpeed = 6f;
+    private float rotationSpeed = 2f;
+    private UnityEngine.AI.NavMeshPath path;
+    private int currentPathIndex;
+    private int attackPower;
+    private bool isManualControl = true;
     public CharacterConfig characterConfig; // Reference to the Scriptable Object
-        // Encapsulated property for combat readiness
+    // Encapsulated property for combat readiness
+    private bool cameraLock;  // the camera should be locked on to the player
+    public bool CameraLock {
+        get => cameraLock;
+        set {
+            if (!cameraLock && value) {
+                Debug.Log($"{gameObject.name} asked for camera lock.");
+            } else if (cameraLock && !value) {
+                Debug.Log($"{gameObject.name} asked the camera to stay.");
+            }
+            cameraLock = value;
+        }
+    }
     private bool isCombatReady;
     public bool IsCombatReady {
         get => isCombatReady;
         set {
             isCombatReady = value;
             if (isCombatReady) {
-                Debug.Log("Entered focus mode. Click to attack.");
+                Debug.Log($"{gameObject.name} entered focus mode. Click to attack.");
                 // Additional logic for entering combat mode (e.g., draw weapon)
             } else {
-                Debug.Log("Exited focus mode. Click to inspect.");
+                Debug.Log($"{gameObject.name} exited focus mode. Click to inspect.");
                 // Additional logic for exiting combat mode (e.g., sheathe weapon)
             }
         }
     }
 
 
-    private void Awake() {
-        characterController = GetComponent<CharacterController>();
+    new private void Awake() { // new because we're hiding the same-named method in the character class and calling explicitly
+
+        Debug.Log($"{gameObject.name} running Player.Awake()");
+        // Ensure the base class's Awake is called
+        base.Awake(); // Explicitly calling the base class Awke() to initialize characterController
+        
+        // characterController = GetComponent<CharacterController>(); defined in the character base class
         animator = GetComponent<Animator>();
         uiManager = FindObjectOfType<UIManager>(); // Dynamically assign UIManager
         if (uiManager == null) {
@@ -47,10 +75,16 @@ public class Player : Character {
     }
 
     private void Start() {
-
         Health = 100; // needs to be persistent
+        attackPower = 1; // depends on experience, buffs, armour etc.
         Experience = 100; // needs to be persistent
         IsCombatReady = false;
+        isRunning = false;
+        CameraLock = false;
+        Speed = 0;
+        animator.SetFloat("Speed", Speed);
+        // Initialize path and set up the pathfinding agent
+        path = new UnityEngine.AI.NavMeshPath();
 
         // Use the value from CharacterConfig to set the animator parameter
             if (characterConfig != null)
@@ -73,38 +107,75 @@ public class Player : Character {
     private void Update() {
         if (isActive) {
 
-            animator.SetBool("isGrounded", characterController.isGrounded);
+            // Using the base class's characterController
+            if (characterController != null) {
+                animator.SetBool("isGrounded", characterController.isGrounded);
+            } else {
+                Debug.LogError($"CharacterController is null in {gameObject.name}'s Update method.");
+            }
 
             if (Input.GetKeyDown(KeyCode.Tab)) {
                 ToggleFocusMode(); // Toggle combat readiness (focus mode) on Tab press
             }
 
+            if (Input.GetKeyDown(KeyCode.LeftShift)) {
+                // Toggle the isRunning state only when the Shift key is pressed down
+                isRunning = !isRunning;
+            }
+
+             // Detect when the left mouse button is pressed
             if (Input.GetMouseButtonDown(0)) {
-                Debug.Log($"{gameObject.name} is registering a click...");
-                GameObject target = ObjectSelector.GetClickedObject();
-                if (target != null) {
-                    if (isCombatReady) {
-                        Debug.Log($"{gameObject.name} is attacking");
-                        Attack(target);
-                    } else {
-                        Debug.Log($"{gameObject.name} is inspecting");
-                        inspectionManager.Inspect(target);
+                mouseLeftDownPosition = Input.mousePosition;
+            }
+
+            // Detect when the left mouse button is released (attack or inspect by clicking)
+            if (Input.GetMouseButtonUp(0)) {
+                // Check if the mouse has moved beyond the threshold
+                if (Vector3.Distance(mouseLeftDownPosition, Input.mousePosition) < clickThreshold) {
+                    Debug.Log($"{gameObject.name} is registering a click...");
+                    GameObject clickedObject = ObjectSelector.GetClickedObject();
+                    if (clickedObject != null) {
+                        SelectTarget(clickedObject.transform);
+                        if (IsCombatReady) {
+                            Debug.Log($"{gameObject.name} is attacking");
+                            Attack();
+                        } else {
+                            Debug.Log($"{gameObject.name} is inspecting");
+                            inspectionManager.Inspect(clickedObject);
+                        }
                     }
                 }
             }
 
             if (Input.GetMouseButtonDown(1)) {
-                if (isCombatReady) {
-                    Defend();
-                } else {
-                    // Interact with selected object
-                    Interact();
+                // Register initial position of right-click for drag detection
+                mouseRightDownPosition = Input.mousePosition;
+            }
+
+            if (Input.GetMouseButtonUp(1)) {
+                // Check if the right-click action is a click or a drag
+                if (Vector3.Distance(mouseRightDownPosition, Input.mousePosition) < clickThreshold) {
+                    // Minimal movement, trigger defense or interaction
+                    if (IsCombatReady) {
+                        Defend(); // Trigger defense if in combat mode
+                    } else {
+                        Interact(); // Interact if not in combat mode
+                    }
                 }
             }
 
+            // if (Input.GetMouseButtonDown(1)) {
+            //     if (IsCombatReady) {
+            //         Defend();
+            //     } else {
+            //         // Interact with selected object
+            //         Interact();
+            //     }
+            // }
+
 
             if (Input.GetKeyDown(KeyCode.Space) && characterController.isGrounded) {
-                Debug.Log("Jumping");
+                Debug.Log($"{gameObject.name} jumping");
                 animator.SetTrigger("jumpTrigger");
                 verticalVelocity = jumpForce;  // Apply jump force when the jump starts
             }
@@ -112,29 +183,15 @@ public class Player : Character {
     }
 
     private void ToggleFocusMode() {
-    isCombatReady = !isCombatReady; // Toggle the combat readiness flag
-        if (isCombatReady) {
-            Debug.Log("Entered focus mode. Click to attack.");
+    IsCombatReady = !IsCombatReady; // Toggle the combat readiness flag
+        if (IsCombatReady) {
+            Debug.Log($"{gameObject.name} entered focus mode. Click to attack.");
+            CameraLock = false;
         } else {
-            Debug.Log("Exited focus mode. Click to inspect.");
+            Debug.Log($"{gameObject.name} exited focus mode. Click to inspect.");
+            CameraLock = true;
         }
     }
-
-    private GameObject GetTarget() {
-
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        RaycastHit hit;
-
-        Debug.Log("Raycating...");
-        if (Physics.Raycast(ray, out hit)) {
-            Debug.Log("...hit!");
-            return hit.collider.gameObject; // Return the GameObject that was clicked on
-        } else {
-            Debug.Log("...missed");
-        }
-        return null; // If nothing was hit, return null
-    }
-
 
     private void InspectObject(GameObject target) {
         if (target != null) {
@@ -156,16 +213,6 @@ public class Player : Character {
             Debug.Log("Target is null");
         }
     }
-
-    private void Attack(GameObject target) {
-        if (target != null) {
-            IInspectable inspectable = target.GetComponent<IInspectable>();
-            if (inspectable != null) {
-                // Implement attack logic here
-                Debug.Log($"Attacking target: {inspectable.GetInfo()}");
-            }
-        }
-    }
     
     public void GainExperience(int amount) {
         Experience += amount;
@@ -174,19 +221,74 @@ public class Player : Character {
     public override void Move() {
 
         // Specific movement for Player
-        float horizontal = Input.GetAxis("Horizontal");  // A/D or Left/Right arrows
-        float vertical = Input.GetAxis("Vertical");      // W/S or Up/Down arrows
+        float horizontal = Input.GetAxis("Horizontal");  // A/D for strafing
+        float vertical = Input.GetAxis("Vertical");      // W/S for forward/backward
+        bool isMoving = false;
+        bool isRotating = false;
 
-        // Rotate the player based on horizontal input (A/D)
-        if (Mathf.Abs(horizontal) > 0.1f) {
-            float rotationSpeed = 100f; // Adjust rotation speed as needed
-            transform.Rotate(Vector3.up, horizontal * rotationSpeed * Time.deltaTime);
+        // Detect manual input for movement
+        if (Mathf.Abs(horizontal) > 0.1f || Mathf.Abs(vertical) > 0.1f || Input.GetMouseButton(0)) {
+            isManualControl = true; // Player has assumed control
+
+            // Stop NavMesh Agent path following if in manual control
+            if (isRunning) {
+                StopCoroutine(MoveAndAttackCoroutine()); // Stop AI movement coroutine if active
+                // isRunning = false;
+                Debug.Log("Player has taken manual control.");
+            }
         }
 
-        // Calculate the movement direction
-        Vector3 direction = transform.forward * vertical;
-        direction = direction.normalized * Speed;
+        // Handle left-click turning
+        if (Input.GetMouseButton(0)) {
+            float mouseX = Input.GetAxis("Mouse X");
+            if (Mathf.Abs(mouseX) > 0.1f) {
+                Debug.Log("Left-click rotation");
+                isRotating = true;
+                CameraLock = true;
+                float rotationSpeed = 100f; // Adjust rotation speed as needed
+                transform.Rotate(Vector3.up, mouseX * rotationSpeed * Time.deltaTime);
+            } else {
+                isRotating = false;
+                if (IsCombatReady) {
+                    if (!isMoving) {
+                        CameraLock = false;
+                    }
+                }
+            }
+        }
 
+        // Set Speed based on running or walking
+        Speed = isRunning ? runSpeed : walkSpeed;
+
+        // If no movement input, stop the character
+        if (Mathf.Abs(vertical) < 0.01f && Mathf.Abs(horizontal) < 0.01f) {
+            Speed = 0;
+            if (IsCombatReady) {
+                if (!isRotating) {
+                    CameraLock = false;
+                }
+            }
+        } else {
+            Debug.Log("Player moving");
+            CameraLock = true;
+        }
+
+        // Calculate strafe direction (left/right movement)
+        Vector3 strafeDirection = transform.right * horizontal;
+
+        // Calculate forward/backward direction
+        Vector3 forwardDirection = transform.forward * vertical;
+
+        // Combine strafing and forward/backward movement
+        Vector3 moveDirection = (strafeDirection + forwardDirection).normalized * Speed;
+
+
+        // Apply slope detection: Prevent downhill movement on steep slopes
+        if (IsSteepSlope(moveDirection)) {
+            // Debug.Log($"{gameObject.name} can't go there; {direction} is too steep!");
+            return; // Cancel movement if on a steep slope
+        }
+        
         // Apply gravity when character is not grounded
         if (characterController.isGrounded && verticalVelocity < 0) {
             // If grounded and falling, reset vertical velocity to a small value to stay grounded
@@ -197,16 +299,14 @@ public class Player : Character {
         }
 
         // Add vertical velocity to the movement direction (gravity or jump)
-        direction.y = verticalVelocity;
+        moveDirection.y = verticalVelocity;
 
         // Apply movement to the Character Controller to move the player
-        characterController.Move(direction * Time.deltaTime);
+        characterController.Move(moveDirection * Time.deltaTime);
 
-        // Calculate input magnitude based on vertical movement (used for animations)
-        float inputMagnitude = Mathf.Abs(vertical);  // The value will be between 0 (idle) and 1 (full speed)
-
-        // Set the Speed parameter in the Animator to control walking/running animations
-        animator.SetFloat("Speed", inputMagnitude);
+        // Set animator parameters for movement
+        animator.SetFloat("Speed", vertical * (Speed / runSpeed));  // Forward/backward
+        animator.SetFloat("Strafe", horizontal);  // Left/right strafe
 
     }
     
@@ -217,47 +317,188 @@ public class Player : Character {
 
         if (isActive) {
             Debug.Log($"{gameObject.name} is now active.");
+            CameraLock = true;
         }
         else {
             Debug.Log($"{gameObject.name} is now inactive.");
+            CameraLock = false;
         }
     }
 
-        // Combat and exploration methods
+    // Combat and exploration methods
     public void EnterFocusMode() {
-        isCombatReady = true;
+        IsCombatReady = true;
         // Placeholder for drawing weapons, setting combat state, etc.
     }
 
     public void ExitFocusMode() {
-        isCombatReady = false;
+        IsCombatReady = false;
         // Placeholder for sheathing weapons, switching to exploration state, etc.
     }
 
     public override void Attack() {
-        if (isCombatReady && target != null) {
-            // Placeholder for offensive action logic (melee, ranged, or magic)
-            Debug.Log($"{CharacterName} attacks the target.");
+        if (IsCombatReady && target != null) {
+
+            // Start the coroutine to handle moving and attacking
+            StartCoroutine(MoveAndAttackCoroutine());
+
         }
     }
 
+    private IEnumerator MoveAndAttackCoroutine() {
+
+        bool wasRunning = isRunning;
+
+        // Initialize and calculate path to the target
+        if (UnityEngine.AI.NavMesh.CalculatePath(transform.position, target.position, UnityEngine.AI.NavMesh.AllAreas, path)) {
+            currentPathIndex = 0;
+            isRunning = true;
+            Speed = runSpeed;
+            animator.SetFloat("Speed", runSpeed); // Start move animation
+            isManualControl = false; // Ensure AI movement starts without manual control
+        } else {
+            Debug.Log("Path calculation failed.");
+            yield break;
+        }
+
+        Debug.Log($"Closing in          : {Vector3.Distance(transform.position, target.position)}");
+        Debug.Log($"currentPathIndex    : {currentPathIndex}");
+        Debug.Log($"path.corners.Length : {path.corners.Length}");
+
+        // Follow the path until within attack range or until manual control is activated
+        while (currentPathIndex < path.corners.Length && Vector3.Distance(transform.position, target.position) > characterConfig.attackDistance) {
+            if (isManualControl) {
+                Debug.Log("Manual control activated; stopping AI movement.");
+                isRunning = wasRunning;
+                yield break; // Exit coroutine if manual control starts
+            }
+
+            // Move towards the next waypoint
+            Vector3 direction = (path.corners[currentPathIndex] - transform.position).normalized;
+            if (direction.magnitude > 0.1f) {
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), Time.deltaTime * rotationSpeed);
+                characterController.Move(direction * runSpeed * Time.deltaTime);
+            }
+
+            // Continuously update speed parameter for running animation
+            animator.SetFloat("Speed", runSpeed);
+
+            // Check if we’ve reached the current path corner
+            if (Vector3.Distance(transform.position, path.corners[currentPathIndex]) < 0.1f) {
+                currentPathIndex++; // Move to the next corner
+            }
+
+            yield return null;
+        }
+
+        // Stop running and initiate the attack if within range
+        if (!isManualControl) {
+            isRunning = wasRunning;
+            Speed = 0;
+            animator.SetFloat("Speed", Speed); // Stop running animation when reaching the target
+
+            // Rotate towards the target until facing it
+            Vector3 lookDirection = (target.position - transform.position).normalized;
+            while (Vector3.Dot(transform.forward, lookDirection) < 0.99f) { // Adjust threshold as needed
+                lookDirection = (target.position - transform.position).normalized;
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDirection), rotationSpeed * 5 * Time.deltaTime);
+                yield return null;
+            }
+
+            // Trigger the attack once facing the target
+            Debug.Log($"{CharacterName} attacks the target: {target.name}");
+            animator.SetTrigger("attackTrigger");
+        }
+    }
+
+
     public override void Defend() {
-        if (isCombatReady) {
+        if (IsCombatReady) {
+            // trigger defend animation and increase defence variable to reduce health loss on hit
             // Placeholder for defensive action logic (e.g., block, parry, aim)
-            Debug.Log($"{CharacterName} is defending.");
+            Debug.Log($"{CharacterName} is defending!");
+            animator.SetTrigger("defendTrigger");
+        }
+    }
+
+    public void ApplyDefensiveAction() {
+        // increasing armour and such
+
+        ParticleSystem defenseEffect = GetComponentsInChildren<ParticleSystem>(true).FirstOrDefault(ps => ps.name == "DefenseEffect");
+
+        if (defenseEffect != null) {
+            defenseEffect.Play();
+        } else {
+            Debug.Log("defenceEffect is null");                
         }
     }
 
     public override void Interact() {
-        if (!isCombatReady && target != null) {
+        if (!IsCombatReady && target != null) {
             // Placeholder for interaction logic (e.g., NPC dialogue, pickup item)
             Debug.Log($"{CharacterName} is interacting.");
         }
     }
 
+    public void ApplyAttackDamage() {
+        if (target != null) {
+
+            TriggerAttackEffect();
+
+            IDamageable damageable = target.GetComponent<IDamageable>();
+            if (damageable != null) {
+                // Deal damage
+                damageable.TakeDamage(attackPower);
+            }
+        }
+    }
+
+    public override void TakeDamage(int damage) {
+        // Reduce health or other damage-related logic
+        Health -= damage;
+        Debug.Log($"{gameObject.name} took {damage} damage. Health is now {Health}.");
+
+        // Trigger the GetHit animation
+        animator.SetTrigger("hitTrigger");
+
+        // Optional: Check for death or other post-hit conditions
+        if (Health <= 0) {
+            // Handle death logic if needed
+        }
+    }
+
+    // Call TriggerAttackEffect from an attack animation event to ensure good visual sync
+    public void TriggerAttackEffect() {
+
+        if (target == null) return;
+
+        if (characterConfig.attackEffect != null) {
+
+            Debug.Log("We have an attack effect, it should go off at " + target.position);
+
+            Vector3 forwardOffset = target.forward * 0.1f; //0.5f; // 0.5 meters in front of target
+            float effectHeightOffset = target.GetComponent<CharacterController>()?.height * 0.75f ?? 1.5f; // Fallback to 1.5f if no CharacterController
+            Vector3 effectPosition = new Vector3(target.position.x + forwardOffset.x, target.position.y + effectHeightOffset, target.position.z + forwardOffset.z);
+/* 
+            // Calculate effect position based on caster's height and an offset in front of the target
+            float casterHeight = transform.position.y + 1.2f; // Approximate caster height, adjust as needed
+
+            Vector3 effectPosition = new Vector3(target.position.x + forwardOffset.x, casterHeight, target.position.z + forwardOffset.z);
+ */
+            GameObject effectInstance = Instantiate(characterConfig.attackEffect, effectPosition, Quaternion.identity);
+
+            var particleSystem = effectInstance.GetComponent<ParticleSystem>();
+
+            if (particleSystem != null && !characterConfig.autoDestroy) {
+                // Only destroy manually if autoDestroy is false
+                Destroy(effectInstance, characterConfig.effectDuration);
+            }
+        }
+    }
+
     public void SelectTarget(Transform newTarget) {
         target = newTarget;
-        // Placeholder for focusing on a target (e.g., enemy, NPC, or item)
+        Debug.Log($"{gameObject.name} has selected target: {target.name}");
     }
 
     void OnDrawGizmosSelected() {

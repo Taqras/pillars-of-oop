@@ -15,12 +15,16 @@ public class UIManager : MonoBehaviour
 
     public void Start() {
         inspectionPanel.SetActive(false);
-        ShowCharacterSelection(false);
+        // ShowCharacterSelection(false);
         ReadyToSelect(false);
     }
 
     public void ShowCharacterSelection(bool show) {
         characterSelectionPanel.SetActive(show);
+    }
+
+    public void ShowInspectionPanel(bool show) {
+        inspectionPanel.SetActive(show);
     }
 
     public void ReadyToSelect(bool ready) {
