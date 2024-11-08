@@ -38,6 +38,16 @@ public class NPC : Character {
         }
     }
 
+    public override void Die() {
+        // Notify GameManager
+        // gameManager.RemoveEnemyFromList(this.gameObject);
+
+        // Trigger the Death animation
+        // animator.SetTrigger("isDead");
+
+        // Destroy the enemy object
+        // Destroy(gameObject, 5f);
+    }
 
     public override Dictionary<string, string> GetInfo() {
         // Start with the base class info

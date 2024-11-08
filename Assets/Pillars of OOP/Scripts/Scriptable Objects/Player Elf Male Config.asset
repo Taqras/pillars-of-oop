@@ -21,3 +21,4 @@ MonoBehaviour:
     type: 3}
   effectDuration: 2
   autoDestroy: 1
+  armour: 100

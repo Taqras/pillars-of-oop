@@ -76,8 +76,11 @@ public class Player : Character {
 
     private void Start() {
         Health = 100; // needs to be persistent
+        Mana = 100;  // needs to be persistent
+        MaxHealth = 100; // needs to be persistent
+        MaxMana = 100; // needs to be persistent
         attackPower = 1; // depends on experience, buffs, armour etc.
-        Experience = 100; // needs to be persistent
+        Experience = 0; // needs to be persistent
         IsCombatReady = false;
         isRunning = false;
         CameraLock = false;
@@ -87,14 +90,14 @@ public class Player : Character {
         path = new UnityEngine.AI.NavMeshPath();
 
         // Use the value from CharacterConfig to set the animator parameter
-            if (characterConfig != null)
-            {
-                Debug.Log($"{gameObject.name} is adjusting walk and run animation by {characterConfig.walkPlaybackSpeed} and {characterConfig.runPlaybackSpeed}");
-                animator.SetFloat("WalkPlaybackSpeed", characterConfig.walkPlaybackSpeed);
-                animator.SetFloat("RunPlaybackSpeed", characterConfig.runPlaybackSpeed);
-                CharacterName = characterConfig.characterName;
-                Description = characterConfig.description;
-            }
+        if (characterConfig != null)
+        {
+            Debug.Log($"{gameObject.name} is adjusting walk and run animation by {characterConfig.walkPlaybackSpeed} and {characterConfig.runPlaybackSpeed}");
+            animator.SetFloat("WalkPlaybackSpeed", characterConfig.walkPlaybackSpeed);
+            animator.SetFloat("RunPlaybackSpeed", characterConfig.runPlaybackSpeed);
+            CharacterName = characterConfig.characterName;
+            Description = characterConfig.description;
+        }
 
     }
 
@@ -164,16 +167,6 @@ public class Player : Character {
                 }
             }
 
-            // if (Input.GetMouseButtonDown(1)) {
-            //     if (IsCombatReady) {
-            //         Defend();
-            //     } else {
-            //         // Interact with selected object
-            //         Interact();
-            //     }
-            // }
-
-
             if (Input.GetKeyDown(KeyCode.Space) && characterController.isGrounded) {
                 Debug.Log($"{gameObject.name} jumping");
                 animator.SetTrigger("jumpTrigger");
@@ -216,6 +209,17 @@ public class Player : Character {
     
     public void GainExperience(int amount) {
         Experience += amount;
+        Debug.Log($"Gained {amount} experience. Total experience: {Experience}");
+    }
+
+    public void GainHealth(int amount) {
+        Health = Mathf.Min(MaxHealth, Health + amount); // Cap at max health
+        Debug.Log($"Gained {amount} health. Current health: {Health}");
+    }
+
+    public void GainMana(int amount) {
+        Mana = Mathf.Min(MaxMana, Mana + amount); // Cap at max mana
+        Debug.Log($"Gained {amount} mana. Current mana: {Mana}");
     }
 
     public override void Move() {
@@ -282,10 +286,11 @@ public class Player : Character {
         // Combine strafing and forward/backward movement
         Vector3 moveDirection = (strafeDirection + forwardDirection).normalized * Speed;
 
+        // Calculate intended position based on the current position and move direction
+        Vector3 intendedPosition = transform.position + moveDirection * Time.deltaTime;
 
         // Apply slope detection: Prevent downhill movement on steep slopes
-        if (IsSteepSlope(moveDirection)) {
-            // Debug.Log($"{gameObject.name} can't go there; {direction} is too steep!");
+        if (IsSteepSlope(intendedPosition)) {
             return; // Cancel movement if on a steep slope
         }
         
@@ -303,6 +308,13 @@ public class Player : Character {
 
         // Apply movement to the Character Controller to move the player
         characterController.Move(moveDirection * Time.deltaTime);
+
+        // Ensure the player remains upright by locking rotation on the x- and z-axes
+        Vector3 fixedRotation = transform.rotation.eulerAngles;
+        fixedRotation.x = 0;
+        fixedRotation.z = 0;
+        transform.rotation = Quaternion.Euler(fixedRotation);
+
 
         // Set animator parameters for movement
         animator.SetFloat("Speed", vertical * (Speed / runSpeed));  // Forward/backward
@@ -361,10 +373,6 @@ public class Player : Character {
             yield break;
         }
 
-        Debug.Log($"Closing in          : {Vector3.Distance(transform.position, target.position)}");
-        Debug.Log($"currentPathIndex    : {currentPathIndex}");
-        Debug.Log($"path.corners.Length : {path.corners.Length}");
-
         // Follow the path until within attack range or until manual control is activated
         while (currentPathIndex < path.corners.Length && Vector3.Distance(transform.position, target.position) > characterConfig.attackDistance) {
             if (isManualControl) {
@@ -392,18 +400,28 @@ public class Player : Character {
         }
 
         // Stop running and initiate the attack if within range
-        if (!isManualControl) {
+        // if (!isManualControl) {
+        if (Vector3.Distance(transform.position, target.position) <= characterConfig.attackDistance + 0.5f) {
             isRunning = wasRunning;
             Speed = 0;
             animator.SetFloat("Speed", Speed); // Stop running animation when reaching the target
 
             // Rotate towards the target until facing it
             Vector3 lookDirection = (target.position - transform.position).normalized;
-            while (Vector3.Dot(transform.forward, lookDirection) < 0.99f) { // Adjust threshold as needed
-                lookDirection = (target.position - transform.position).normalized;
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDirection), rotationSpeed * 5 * Time.deltaTime);
-                yield return null;
-            }
+            Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+
+            // // Use a single rotation alignment rather than re-calculating each frame
+            // while (Vector3.Dot(transform.forward, lookDirection) < 0.99f) { // Adjust threshold as needed
+            //     // lookDirection = (target.position - transform.position).normalized;
+            //     // transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDirection), rotationSpeed * 5 * Time.deltaTime);
+            //     transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * 5 * Time.deltaTime);
+            //     yield return null;
+            // }
+
+            characterController.enabled = false;
+            transform.rotation = Quaternion.LookRotation(lookDirection);
+            characterController.enabled = true;
+
 
             // Trigger the attack once facing the target
             Debug.Log($"{CharacterName} attacks the target: {target.name}");
@@ -424,6 +442,7 @@ public class Player : Character {
     public void ApplyDefensiveAction() {
         // increasing armour and such
 
+        // DefenceEffect is a particle effect stored in the magic users bones
         ParticleSystem defenseEffect = GetComponentsInChildren<ParticleSystem>(true).FirstOrDefault(ps => ps.name == "DefenseEffect");
 
         if (defenseEffect != null) {
@@ -454,9 +473,12 @@ public class Player : Character {
     }
 
     public override void TakeDamage(int damage) {
+
+        int adjustedDamage = Mathf.Max(0, damage - characterConfig.armour); // Ensure damage isn't negative
+
         // Reduce health or other damage-related logic
-        Health -= damage;
-        Debug.Log($"{gameObject.name} took {damage} damage. Health is now {Health}.");
+        Health -= adjustedDamage;
+        Debug.Log($"{CharacterName} took {adjustedDamage} damage. Remaining health: {Health}");
 
         // Trigger the GetHit animation
         animator.SetTrigger("hitTrigger");
@@ -464,7 +486,13 @@ public class Player : Character {
         // Optional: Check for death or other post-hit conditions
         if (Health <= 0) {
             // Handle death logic if needed
+            Die();
         }
+    }
+
+    public override void Die() {
+        animator.SetTrigger("isDead");
+        Debug.Log($"{CharacterName} died");
     }
 
     // Call TriggerAttackEffect from an attack animation event to ensure good visual sync

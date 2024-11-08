@@ -10,6 +10,11 @@ public class GameManager : MonoBehaviour {
     public GameObject[] players; // Array of potential player characters
     private bool haveCharacter = false;
     GameObject selectedCharacter;
+    [SerializeField] private List<EnemyPrefabMapping> enemyPrefabMappings;
+    private Dictionary<EnemyType, GameObject> enemyPrefabs;
+    private Dictionary<EnemyType, List<Transform>> spawnPointsByType;
+    public Dictionary<Transform, List<GameObject>> activeEnemiesBySpawnPoint = new Dictionary<Transform, List<GameObject>>();
+    public int maxEnemiesPerSpawnPoint = 5;
 
     private void Awake() {
         uiManager = FindObjectOfType<UIManager>(); // Dynamically assign UIManager
@@ -32,6 +37,14 @@ public class GameManager : MonoBehaviour {
 
         // Ensure the character selection panel is shown initially
         uiManager.ShowCharacterSelection(true);
+
+        enemyPrefabs = new Dictionary<EnemyType, GameObject>();
+        foreach (var mapping in enemyPrefabMappings) {
+            enemyPrefabs[mapping.enemyType] = mapping.prefab;
+        }
+
+        InitializeSpawnPoints();        
+        SpawnEnemies();
 
     }
 
@@ -87,5 +100,83 @@ public class GameManager : MonoBehaviour {
         uiManager.ShowCharacterSelection(false);
         uiManager.ShowInspectionPanel(false);
     }
+
+    private void InitializeSpawnPoints() {
+
+        spawnPointsByType = new Dictionary<EnemyType, List<Transform>>();
+        SpawnPoint[] allSpawnPoints = FindObjectsOfType<SpawnPoint>();
+
+        foreach (var spawnPoint in allSpawnPoints) {
+            if (!spawnPointsByType.ContainsKey(spawnPoint.enemyType)) {
+                spawnPointsByType[spawnPoint.enemyType] = new List<Transform>();
+            }
+
+            spawnPointsByType[spawnPoint.enemyType].Add(spawnPoint.transform);
+        }
+    }
+
+    public void SpawnEnemy(EnemyType enemyType) {
+        // Utility function to spawn singular enemies
+        if (spawnPointsByType.ContainsKey(enemyType) && spawnPointsByType[enemyType].Count > 0) {
+            List<Transform> spawnPoints = spawnPointsByType[enemyType];
+            Transform selectedSpawnPoint = spawnPoints[Random.Range(0, spawnPoints.Count)];
+
+            if (enemyPrefabs.TryGetValue(enemyType, out GameObject enemyPrefab)) {
+                Instantiate(enemyPrefab, selectedSpawnPoint.position, Quaternion.identity);
+            } else {
+                Debug.LogWarning($"No prefab assigned for enemy type {enemyType}");
+            }
+        }
+    }
+
+    public void SpawnEnemies() {
+
+        Debug.Log("Spawning enemies:");
+        foreach (var spawnPointEntry in spawnPointsByType) {
+            Debug.Log($"  Spawn points for enemy type: {spawnPointEntry.Key}");
+
+            foreach (Transform point in spawnPointEntry.Value) {
+                Debug.Log($"    Location: {point}");
+
+                if (enemyPrefabs.TryGetValue(spawnPointEntry.Key, out GameObject enemyPrefab)) {
+                    int spawnCount = Random.Range(1, maxEnemiesPerSpawnPoint + 1);
+
+                    for (int i = 0; i < spawnCount; i++) {
+                        Debug.Log($"      Spawning enemy {i + 1} of {spawnCount}");
+                        GameObject enemyInstance = Instantiate(enemyPrefab, point.position, Quaternion.identity);
+                        
+                        // Add to tracking dictionary
+                        if (!activeEnemiesBySpawnPoint.ContainsKey(point)) {
+                            activeEnemiesBySpawnPoint[point] = new List<GameObject>();
+                        }
+
+                        activeEnemiesBySpawnPoint[point].Add(enemyInstance);
+                        
+                        // Assign GameManager to the Enemy script for self-removal on death
+                        enemyInstance.GetComponent<Enemy>().SetGameManager(this);
+                    }
+
+                } else {
+                    Debug.LogWarning($"No prefab assigned for enemy type {spawnPointEntry.Key}");
+                }
+            }
+        }
+    }
+
+    public void RemoveEnemyFromList(GameObject enemy) {
+        foreach (var spawnPoint in activeEnemiesBySpawnPoint.Keys) {
+            if (activeEnemiesBySpawnPoint[spawnPoint].Contains(enemy)) {
+                activeEnemiesBySpawnPoint[spawnPoint].Remove(enemy);
+                break; // Exit loop once the enemy is found and removed
+            }
+        }
+    }
+
+
+    private GameObject GetEnemyPrefabByType(EnemyType enemyType) {
+        // Implement logic to return the appropriate prefab for each enemy type
+        return null;
+    }
+
 
 }

@@ -16,3 +16,8 @@ MonoBehaviour:
   runPlaybackSpeed: 1.1
   characterName: A female elf
   description: She looks cunning, swift and quite dangerous
+  attackDistance: 2
+  attackEffect: {fileID: 0}
+  effectDuration: 2
+  autoDestroy: 1
+  armour: 100
