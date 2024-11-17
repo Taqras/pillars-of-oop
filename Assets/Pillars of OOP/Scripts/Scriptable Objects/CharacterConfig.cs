@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "CharacterConfig", menuName = "Configurations/CharacterConfig")]
+[CreateAssetMenu(fileName = "CharacterConfig", menuName = "Configurations/Character Config")]
 public class CharacterConfig : ScriptableObject
 {
     // Any custom values for character configuration
@@ -13,8 +13,11 @@ public class CharacterConfig : ScriptableObject
     public string characterName = "Unnamed";
     public string description = "No description";
     public float attackDistance = 2f;
+    public int attackPower = 1;
     public GameObject attackEffect; // Optional attack effect (spell for mage, none for sword fighter)
     public float effectDuration = 2f; // Duration of the effect (used if autoDestroy is false)
     public bool autoDestroy = true; // If true, automatically destroy effect at the end
+    public int armour = 1;
+    public bool usesMana = false;
 
 }

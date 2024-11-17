@@ -24,7 +24,7 @@ public class NPC : Character {
         // Placeholder: Play defense animation, reduce damage, etc.
     }
 
-    public override void TakeDamage(int damage) {
+    public override void TakeDamage(int damage, Transform attacker) {
         // Reduce health or other damage-related logic
         Health -= damage;
         Debug.Log($"{gameObject.name} took {damage} damage. Health is now {Health}.");
@@ -38,6 +38,16 @@ public class NPC : Character {
         }
     }
 
+    public override void Die() {
+        // Notify GameManager
+        // gameManager.RemoveEnemyFromList(this.gameObject);
+
+        // Trigger the Death animation
+        // animator.SetTrigger("isDead");
+
+        // Destroy the enemy object
+        // Destroy(gameObject, 5f);
+    }
 
     public override Dictionary<string, string> GetInfo() {
         // Start with the base class info

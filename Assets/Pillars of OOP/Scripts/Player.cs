@@ -25,7 +25,11 @@ public class Player : Character {
     private UnityEngine.AI.NavMeshPath path;
     private int currentPathIndex;
     private int attackPower;
+    private int armour;
     private bool isManualControl = true;
+    private bool isAttacking = false;
+    public bool isDead = false;
+    public bool usesMana = false;
     public CharacterConfig characterConfig; // Reference to the Scriptable Object
     // Encapsulated property for combat readiness
     private bool cameraLock;  // the camera should be locked on to the player
@@ -55,19 +59,23 @@ public class Player : Character {
         }
     }
 
-
     new private void Awake() { // new because we're hiding the same-named method in the character class and calling explicitly
 
-        Debug.Log($"{gameObject.name} running Player.Awake()");
+        // Debug.Log($"{gameObject.name} running Player.Awake()");
         // Ensure the base class's Awake is called
         base.Awake(); // Explicitly calling the base class Awke() to initialize characterController
         
         // characterController = GetComponent<CharacterController>(); defined in the character base class
         animator = GetComponent<Animator>();
+
         uiManager = FindObjectOfType<UIManager>(); // Dynamically assign UIManager
-        if (uiManager == null) {
+        if (uiManager != null) {
+            OnHealthChanged += uiManager.UpdateHealthIndicator;
+            OnManaChanged += uiManager.UpdateManaIndicator;
+        } else {
             Debug.LogError("UIManager not found in the scene. Make sure there's a UIManager in the scene.");
         }
+
         inspectionManager = FindObjectOfType<InspectionManager>(); // Dynamically assign InspectionManager
         if (inspectionManager == null) {
             Debug.LogError("InspectionManager not found in the scene. Make sure there's an InspectionManager in the scene.");
@@ -76,25 +84,32 @@ public class Player : Character {
 
     private void Start() {
         Health = 100; // needs to be persistent
-        attackPower = 1; // depends on experience, buffs, armour etc.
-        Experience = 100; // needs to be persistent
+        Mana = 100;  // needs to be persistent
+        MaxHealth = 100; // needs to be persistent
+        MaxMana = 100; // needs to be persistent
+        
+        Experience = 0; // needs to be persistent
         IsCombatReady = false;
         isRunning = false;
-        CameraLock = false;
+        isAttacking = false;
+        SetCameraLock(false);
         Speed = 0;
         animator.SetFloat("Speed", Speed);
         // Initialize path and set up the pathfinding agent
         path = new UnityEngine.AI.NavMeshPath();
 
         // Use the value from CharacterConfig to set the animator parameter
-            if (characterConfig != null)
-            {
-                Debug.Log($"{gameObject.name} is adjusting walk and run animation by {characterConfig.walkPlaybackSpeed} and {characterConfig.runPlaybackSpeed}");
-                animator.SetFloat("WalkPlaybackSpeed", characterConfig.walkPlaybackSpeed);
-                animator.SetFloat("RunPlaybackSpeed", characterConfig.runPlaybackSpeed);
-                CharacterName = characterConfig.characterName;
-                Description = characterConfig.description;
-            }
+        if (characterConfig != null)
+        {
+            Debug.Log($"{gameObject.name} is adjusting walk and run animation by {characterConfig.walkPlaybackSpeed} and {characterConfig.runPlaybackSpeed}");
+            animator.SetFloat("WalkPlaybackSpeed", characterConfig.walkPlaybackSpeed);
+            animator.SetFloat("RunPlaybackSpeed", characterConfig.runPlaybackSpeed);
+            CharacterName = characterConfig.characterName;
+            Description = characterConfig.description;
+            armour = characterConfig.armour;
+            attackPower = characterConfig.attackPower;
+            usesMana = characterConfig.usesMana;
+        }
 
     }
 
@@ -157,22 +172,13 @@ public class Player : Character {
                 if (Vector3.Distance(mouseRightDownPosition, Input.mousePosition) < clickThreshold) {
                     // Minimal movement, trigger defense or interaction
                     if (IsCombatReady) {
+                        Debug.Log("Right mouse button up - trigger defense");
                         Defend(); // Trigger defense if in combat mode
                     } else {
                         Interact(); // Interact if not in combat mode
                     }
                 }
             }
-
-            // if (Input.GetMouseButtonDown(1)) {
-            //     if (IsCombatReady) {
-            //         Defend();
-            //     } else {
-            //         // Interact with selected object
-            //         Interact();
-            //     }
-            // }
-
 
             if (Input.GetKeyDown(KeyCode.Space) && characterController.isGrounded) {
                 Debug.Log($"{gameObject.name} jumping");
@@ -186,11 +192,16 @@ public class Player : Character {
     IsCombatReady = !IsCombatReady; // Toggle the combat readiness flag
         if (IsCombatReady) {
             Debug.Log($"{gameObject.name} entered focus mode. Click to attack.");
-            CameraLock = false;
+            SetCameraLock(false);
         } else {
             Debug.Log($"{gameObject.name} exited focus mode. Click to inspect.");
-            CameraLock = true;
+            SetCameraLock(true);
         }
+    }
+
+    public void SetCameraLock(bool lockState) {
+        CameraLock = lockState;
+        // Debug.Log($"{gameObject.name} set CameraLock to {lockState}");
     }
 
     private void InspectObject(GameObject target) {
@@ -216,6 +227,17 @@ public class Player : Character {
     
     public void GainExperience(int amount) {
         Experience += amount;
+        Debug.Log($"Gained {amount} experience. Total experience: {Experience}");
+    }
+
+    public void GainHealth(int amount) {
+        Health = Mathf.Min(MaxHealth, Health + amount); // Cap at max health
+        Debug.Log($"Gained {amount} health. Current health: {Health}");
+    }
+
+    public void GainMana(int amount) {
+        Mana = Mathf.Min(MaxMana, Mana + amount); // Cap at max mana
+        Debug.Log($"Gained {amount} mana. Current mana: {Mana}");
     }
 
     public override void Move() {
@@ -223,12 +245,22 @@ public class Player : Character {
         // Specific movement for Player
         float horizontal = Input.GetAxis("Horizontal");  // A/D for strafing
         float vertical = Input.GetAxis("Vertical");      // W/S for forward/backward
-        bool isMoving = false;
         bool isRotating = false;
+        float mouseX = 0;
+
+        // Check left-click rotation
+        if (Input.GetMouseButton(0)) {
+            mouseX = Input.GetAxis("Mouse X");
+            Debug.Log($"Mathf.Abs(mouseX) = {Mathf.Abs(mouseX)}");
+        }
 
         // Detect manual input for movement
-        if (Mathf.Abs(horizontal) > 0.1f || Mathf.Abs(vertical) > 0.1f || Input.GetMouseButton(0)) {
+        // if (Mathf.Abs(horizontal) > 0.1f || Mathf.Abs(vertical) > 0.1f || Input.GetMouseButton(0)) {
+        if (Mathf.Abs(horizontal) > 0.1f || Mathf.Abs(vertical) > 0.1f || Mathf.Abs(mouseX) > 0.1f) {
+            
+            Debug.Log("Activating manual control");
             isManualControl = true; // Player has assumed control
+            isAttacking = false;
 
             // Stop NavMesh Agent path following if in manual control
             if (isRunning) {
@@ -238,76 +270,79 @@ public class Player : Character {
             }
         }
 
-        // Handle left-click turning
-        if (Input.GetMouseButton(0)) {
-            float mouseX = Input.GetAxis("Mouse X");
+        if (!isAttacking) {
             if (Mathf.Abs(mouseX) > 0.1f) {
                 Debug.Log("Left-click rotation");
                 isRotating = true;
-                CameraLock = true;
+                SetCameraLock(true);
                 float rotationSpeed = 100f; // Adjust rotation speed as needed
                 transform.Rotate(Vector3.up, mouseX * rotationSpeed * Time.deltaTime);
             } else {
                 isRotating = false;
                 if (IsCombatReady) {
-                    if (!isMoving) {
-                        CameraLock = false;
+                    SetCameraLock(false);
+                }
+            }
+
+            // Set Speed based on running or walking
+            Speed = isRunning ? runSpeed : walkSpeed;
+
+            // If no movement input, stop the character
+            if (Mathf.Abs(vertical) < 0.01f && Mathf.Abs(horizontal) < 0.01f) {
+                Speed = 0;
+                if (IsCombatReady) {
+                    if (!isRotating) {
+                        SetCameraLock(false);
                     }
                 }
+            } else {
+                Debug.Log("Player moving");
+                SetCameraLock(true);
             }
-        }
 
-        // Set Speed based on running or walking
-        Speed = isRunning ? runSpeed : walkSpeed;
+            // Calculate strafe direction (left/right movement)
+            Vector3 strafeDirection = transform.right * horizontal;
 
-        // If no movement input, stop the character
-        if (Mathf.Abs(vertical) < 0.01f && Mathf.Abs(horizontal) < 0.01f) {
-            Speed = 0;
-            if (IsCombatReady) {
-                if (!isRotating) {
-                    CameraLock = false;
-                }
+            // Calculate forward/backward direction
+            Vector3 forwardDirection = transform.forward * vertical;
+
+            // Combine strafing and forward/backward movement
+            Vector3 moveDirection = (strafeDirection + forwardDirection).normalized * Speed;
+
+            // Calculate intended position based on the current position and move direction
+            Vector3 intendedPosition = transform.position + moveDirection * Time.deltaTime;
+
+            // Apply slope detection: Prevent downhill movement on steep slopes
+            if (IsSteepSlope(intendedPosition)) {
+                return; // Cancel movement if on a steep slope
             }
-        } else {
-            Debug.Log("Player moving");
-            CameraLock = true;
+            
+            // Apply gravity when character is not grounded
+            if (characterController.isGrounded && verticalVelocity < 0) {
+                // If grounded and falling, reset vertical velocity to a small value to stay grounded
+                verticalVelocity = -1f;  // A small negative value to ensure the character stays grounded
+            } else {
+                // Apply gravity if character is in the air
+                verticalVelocity -= gravity * Time.deltaTime;
+            }
+
+            // Add vertical velocity to the movement direction (gravity or jump)
+            moveDirection.y = verticalVelocity;
+
+            // Apply movement to the Character Controller to move the player
+            characterController.Move(moveDirection * Time.deltaTime);
+
+            // Ensure the player remains upright by locking rotation on the x- and z-axes
+            Vector3 fixedRotation = transform.rotation.eulerAngles;
+            fixedRotation.x = 0;
+            fixedRotation.z = 0;
+            transform.rotation = Quaternion.Euler(fixedRotation);
+
+
+            // Set animator parameters for movement
+            animator.SetFloat("Speed", vertical * (Speed / runSpeed));  // Forward/backward
+            animator.SetFloat("Strafe", horizontal);  // Left/right strafe
         }
-
-        // Calculate strafe direction (left/right movement)
-        Vector3 strafeDirection = transform.right * horizontal;
-
-        // Calculate forward/backward direction
-        Vector3 forwardDirection = transform.forward * vertical;
-
-        // Combine strafing and forward/backward movement
-        Vector3 moveDirection = (strafeDirection + forwardDirection).normalized * Speed;
-
-
-        // Apply slope detection: Prevent downhill movement on steep slopes
-        if (IsSteepSlope(moveDirection)) {
-            // Debug.Log($"{gameObject.name} can't go there; {direction} is too steep!");
-            return; // Cancel movement if on a steep slope
-        }
-        
-        // Apply gravity when character is not grounded
-        if (characterController.isGrounded && verticalVelocity < 0) {
-            // If grounded and falling, reset vertical velocity to a small value to stay grounded
-            verticalVelocity = -1f;  // A small negative value to ensure the character stays grounded
-        } else {
-            // Apply gravity if character is in the air
-            verticalVelocity -= gravity * Time.deltaTime;
-        }
-
-        // Add vertical velocity to the movement direction (gravity or jump)
-        moveDirection.y = verticalVelocity;
-
-        // Apply movement to the Character Controller to move the player
-        characterController.Move(moveDirection * Time.deltaTime);
-
-        // Set animator parameters for movement
-        animator.SetFloat("Speed", vertical * (Speed / runSpeed));  // Forward/backward
-        animator.SetFloat("Strafe", horizontal);  // Left/right strafe
-
     }
     
     // Encapsulated setter for isActive with additional logic
@@ -317,15 +352,14 @@ public class Player : Character {
 
         if (isActive) {
             Debug.Log($"{gameObject.name} is now active.");
-            CameraLock = true;
+            SetCameraLock(true);
         }
         else {
             Debug.Log($"{gameObject.name} is now inactive.");
-            CameraLock = false;
+            SetCameraLock(false);
         }
     }
 
-    // Combat and exploration methods
     public void EnterFocusMode() {
         IsCombatReady = true;
         // Placeholder for drawing weapons, setting combat state, etc.
@@ -337,8 +371,10 @@ public class Player : Character {
     }
 
     public override void Attack() {
-        if (IsCombatReady && target != null) {
+        if (IsCombatReady && target != null && !isAttacking) {
 
+            isAttacking = true;
+            isManualControl = false;
             // Start the coroutine to handle moving and attacking
             StartCoroutine(MoveAndAttackCoroutine());
 
@@ -348,67 +384,95 @@ public class Player : Character {
     private IEnumerator MoveAndAttackCoroutine() {
 
         bool wasRunning = isRunning;
+        float pathRecalculateInterval = 0.5f; // Interval for path recalculations
+        float timeSinceLastPathUpdate = 0;
 
-        // Initialize and calculate path to the target
-        if (UnityEngine.AI.NavMesh.CalculatePath(transform.position, target.position, UnityEngine.AI.NavMesh.AllAreas, path)) {
-            currentPathIndex = 0;
-            isRunning = true;
-            Speed = runSpeed;
-            animator.SetFloat("Speed", runSpeed); // Start move animation
-            isManualControl = false; // Ensure AI movement starts without manual control
-        } else {
-            Debug.Log("Path calculation failed.");
-            yield break;
-        }
+        while (Vector3.Distance(transform.position, target.position) > characterConfig.attackDistance + 0.5f) {
 
-        Debug.Log($"Closing in          : {Vector3.Distance(transform.position, target.position)}");
-        Debug.Log($"currentPathIndex    : {currentPathIndex}");
-        Debug.Log($"path.corners.Length : {path.corners.Length}");
-
-        // Follow the path until within attack range or until manual control is activated
-        while (currentPathIndex < path.corners.Length && Vector3.Distance(transform.position, target.position) > characterConfig.attackDistance) {
             if (isManualControl) {
                 Debug.Log("Manual control activated; stopping AI movement.");
+                isAttacking = false;
                 isRunning = wasRunning;
                 yield break; // Exit coroutine if manual control starts
             }
 
+            timeSinceLastPathUpdate += Time.deltaTime;
+
+            // Recalculate path if the interval has passed or if no valid path exists
+            if (timeSinceLastPathUpdate >= pathRecalculateInterval || path == null || currentPathIndex >= path.corners.Length) {
+
+                // First we must get into combat distance
+
+                // Initialize and calculate path to the target
+                if (UnityEngine.AI.NavMesh.CalculatePath(transform.position, target.position, UnityEngine.AI.NavMesh.AllAreas, path)) {
+                    // Debug.Log("1: Calculate path");
+                    currentPathIndex = 0;
+                    isRunning = true;
+                    Speed = runSpeed;
+                    animator.SetFloat("Speed", runSpeed); // Start move animation
+                    isManualControl = false; // Ensure AI movement starts without manual control
+                    timeSinceLastPathUpdate = 0; // Reset path update timer
+                } else {
+                    // Debug.Log("Path calculation failed.");
+                    isAttacking = false;
+                    yield break;
+                }
+            }
+
             // Move towards the next waypoint
-            Vector3 direction = (path.corners[currentPathIndex] - transform.position).normalized;
-            if (direction.magnitude > 0.1f) {
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), Time.deltaTime * rotationSpeed);
-                characterController.Move(direction * runSpeed * Time.deltaTime);
+            if (currentPathIndex < path.corners.Length) {
+                Vector3 direction = (path.corners[currentPathIndex] - transform.position).normalized;
+                float distanceToCorner = Vector3.Distance(transform.position, path.corners[currentPathIndex]);
+
+                //if (direction.magnitude > 0.1f) {
+                if (distanceToCorner > 0.4f) {  // Adjust threshold for smoother movement
+                    // Debug.Log($"3: Distance to path corner: {distanceToCorner}");
+                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), Time.deltaTime * (rotationSpeed));
+                    // characterController.Move(direction * runSpeed * Time.deltaTime);
+                    characterController.Move(new Vector3(direction.x * runSpeed, verticalVelocity, direction.z * runSpeed) * Time.deltaTime);
+                } else {
+                    currentPathIndex++; // Move to the next corner if close enough
+                }
             }
 
-            // Continuously update speed parameter for running animation
-            animator.SetFloat("Speed", runSpeed);
-
-            // Check if we’ve reached the current path corner
-            if (Vector3.Distance(transform.position, path.corners[currentPathIndex]) < 0.1f) {
-                currentPathIndex++; // Move to the next corner
+            if (characterController.isGrounded) {
+                // If grounded and falling, reset vertical velocity to a small value to stay grounded
+                verticalVelocity = -1f;  // A small negative value to ensure the character stays grounded
+            } else {
+                // Apply gravity if character is in the air
+                verticalVelocity -= gravity * Time.deltaTime;
             }
 
+            // Add a slight delay between iterations to prevent jitter
+            // yield return new WaitForSeconds(0.05f);
             yield return null;
         }
 
         // Stop running and initiate the attack if within range
-        if (!isManualControl) {
+        // if (!isManualControl) {
+        if (Vector3.Distance(transform.position, target.position) <= characterConfig.attackDistance + 0.5f) {
             isRunning = wasRunning;
             Speed = 0;
             animator.SetFloat("Speed", Speed); // Stop running animation when reaching the target
 
             // Rotate towards the target until facing it
             Vector3 lookDirection = (target.position - transform.position).normalized;
-            while (Vector3.Dot(transform.forward, lookDirection) < 0.99f) { // Adjust threshold as needed
-                lookDirection = (target.position - transform.position).normalized;
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDirection), rotationSpeed * 5 * Time.deltaTime);
-                yield return null;
-            }
+            // Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+
+            characterController.enabled = false;
+            transform.rotation = Quaternion.LookRotation(lookDirection);
+            characterController.enabled = true;
+
 
             // Trigger the attack once facing the target
-            Debug.Log($"{CharacterName} attacks the target: {target.name}");
+            // Debug.Log($"{CharacterName} attacks the target: {target.name}");
+
             animator.SetTrigger("attackTrigger");
+            
         }
+
+        isAttacking = false;
+
     }
 
 
@@ -418,19 +482,51 @@ public class Player : Character {
             // Placeholder for defensive action logic (e.g., block, parry, aim)
             Debug.Log($"{CharacterName} is defending!");
             animator.SetTrigger("defendTrigger");
+        } else {
+            Debug.LogError("Defend called without being combat ready");
         }
     }
 
     public void ApplyDefensiveAction() {
         // increasing armour and such
 
+        // DefenceEffect is a particle effect stored in the magic users bones
         ParticleSystem defenseEffect = GetComponentsInChildren<ParticleSystem>(true).FirstOrDefault(ps => ps.name == "DefenseEffect");
 
-        if (defenseEffect != null) {
-            defenseEffect.Play();
+        if (usesMana) {
+            if (ConsumeMana(10)) {
+                if (defenseEffect != null) {
+                    defenseEffect.Play();
+                } else {
+                    Debug.Log("defenceEffect is null");                
+                }
+                Debug.Log("Magic defense");
+                BoostArmourTemporarily(5, 5);
+            } else {
+                Debug.Log("Not enough mana for magic defense");
+            }
         } else {
-            Debug.Log("defenceEffect is null");                
+            Debug.Log("Melee defense");
+            BoostArmourTemporarily(5, 8);
         }
+    }
+
+    public void BoostArmourTemporarily(int boostAmount, float duration) {
+        StartCoroutine(TemporaryArmourBoost(boostAmount, duration));
+    }
+
+    private IEnumerator TemporaryArmourBoost(int boostAmount, float duration) {
+        // Apply the armour boost
+        int originalArmour = armour;
+        armour += boostAmount;
+        Debug.Log($"Armour boosted to {armour} for {duration} seconds.");
+
+        // Wait for the duration
+        yield return new WaitForSeconds(duration);
+
+        // Revert the armour boost
+        armour = originalArmour;
+        Debug.Log("Armour reverted to original value.");
     }
 
     public override void Interact() {
@@ -440,6 +536,7 @@ public class Player : Character {
         }
     }
 
+    // Called from the attack animation event
     public void ApplyAttackDamage() {
         if (target != null) {
 
@@ -448,22 +545,46 @@ public class Player : Character {
             IDamageable damageable = target.GetComponent<IDamageable>();
             if (damageable != null) {
                 // Deal damage
-                damageable.TakeDamage(attackPower);
+                if (usesMana) {
+                    if (ConsumeMana(5)) {
+                        damageable.TakeDamage(attackPower, transform);
+                    }
+                } else {
+                    damageable.TakeDamage(attackPower, transform);
+                }
             }
         }
     }
 
-    public override void TakeDamage(int damage) {
-        // Reduce health or other damage-related logic
-        Health -= damage;
-        Debug.Log($"{gameObject.name} took {damage} damage. Health is now {Health}.");
+    public override void TakeDamage(int damage, Transform attacker) {
 
-        // Trigger the GetHit animation
-        animator.SetTrigger("hitTrigger");
+        if (!isDead) {
 
-        // Optional: Check for death or other post-hit conditions
-        if (Health <= 0) {
-            // Handle death logic if needed
+            int adjustedDamage = Mathf.Max(0, damage - armour); // Ensure damage isn't negative
+
+            // Reduce health or other damage-related logic
+            Health -= adjustedDamage;
+            Debug.Log($"{CharacterName} took {adjustedDamage} damage. Remaining health: {Health}");
+
+            // Trigger the GetHit animation
+            animator.SetTrigger("hitTrigger");
+
+            // Optional: Check for death or other post-hit conditions
+            if (Health <= 0) {
+                // Handle death logic if needed
+                Die();
+            }
+        } else {
+            Debug.Log($"{CharacterName} is dead and is still being attacked");
+        }
+
+    }
+
+    public override void Die() {
+        if (!isDead) {
+            isDead = true;
+            animator.SetTrigger("isDead");
+            Debug.Log($"{CharacterName} died");
         }
     }
 
@@ -494,6 +615,8 @@ public class Player : Character {
                 Destroy(effectInstance, characterConfig.effectDuration);
             }
         }
+
+        Mana -= 10; // put this in config
     }
 
     public void SelectTarget(Transform newTarget) {

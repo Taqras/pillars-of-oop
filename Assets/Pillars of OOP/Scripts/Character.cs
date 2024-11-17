@@ -1,11 +1,15 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using System;
 
 public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInteractable {
 
     protected CharacterController characterController;
+
+    public event Action<int> OnHealthChanged;
+    public event Action<int> OnManaChanged;
+
 
     // Speed is protected and initialized with a default value
     private float speed = 2f; // Backing field for speed, defaults to something sensible
@@ -33,15 +37,46 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
     public virtual int Health {
         get => health;
         protected set {
+            health = Mathf.Clamp(value, 0, MaxHealth);
+            OnHealthChanged?.Invoke(health);
+        }
+    }
+
+    private int maxHealth = 100; // Backing field for maxHealth, defaults to none
+    public virtual int MaxHealth {
+        get => maxHealth;
+        protected set {
             if (value >= 0) {
-                health = value;
+                maxHealth = value;
             } else {
-                Debug.LogError("Health cannot be negative.");
+                maxHealth = 0;
             }
         }
     }
 
-    private int experience = 0; // Backing field for experience, defaults to 0
+
+    private int mana = 0; // Backing field for mana, defaults to none
+    public virtual int Mana {
+        get => mana;
+        protected set {
+            mana = Mathf.Clamp(value, 0, MaxMana);
+            OnManaChanged?.Invoke(mana);
+        }
+    }
+
+    private int maxMana = 100; // Backing field for maxMana, defaults to none
+    public virtual int MaxMana {
+        get => maxMana;
+        protected set {
+            if (value >= 0) {
+                maxMana = value;
+            } else {
+                maxMana = 0;
+            }
+        }
+    }
+
+    private int experience = 0; // Backing field for experience, defaults to none
     public virtual int Experience {
         get => experience;
         protected set {
@@ -65,44 +100,44 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
     }
 
     protected void Awake() {
-        Debug.Log($"{gameObject.name} running Character.Awake()");
+        // Debug.Log($"{gameObject.name} running Character.Awake()");
         characterController = GetComponent<CharacterController>();
         if (characterController == null) {
             Debug.LogError("CharacterController is missing!");
         } else {
-            Debug.Log("CharacterController is assigned successfully.");
+            // Debug.Log("CharacterController is assigned successfully.");
         }
     }
 
-    // Example method for managing health safely
     public abstract void Move();
     public abstract void Interact();
     public abstract void Attack();
     public abstract void Defend();
-    public abstract void TakeDamage(int damage);
+    public abstract void TakeDamage(int damage, Transform attacker);
+    public abstract void Die();
 
-    protected bool IsSteepSlope(Vector3 moveDirection) {
-        if (moveDirection == null) {
-            Debug.Log("moveDirection is null!");
-        }
+    public bool IsSteepSlope(Vector3 position) {
+        // Cast a ray downward from the given position to detect the ground surface
         RaycastHit hit;
-        if (Physics.Raycast(transform.position, Vector3.down, out hit, 2.0f)) {
+        if (Physics.Raycast(position, Vector3.down, out hit, Mathf.Infinity)) {
+            // Calculate the slope angle based on the ground normal
             float slopeAngle = Vector3.Angle(hit.normal, Vector3.up);
-          
-            // Check if moving downhill (we don't care about uphill)
-            bool isMovingDownhill = Vector3.Dot(moveDirection, hit.normal) > 0;
-
-            // Debugging to understand what's happening
-            // Debug.Log($"Slope Angle: {slopeAngle}, Move Direction: {moveDirection}, Hit Normal: {hit.normal}, Downhill: {isMovingDownhill}");
-
-
-            // Only block downhill movement on steep slopes
-            if (slopeAngle > characterController.slopeLimit && isMovingDownhill) {
-                // Debug.Log($"Slope Angle: {slopeAngle}, Move Direction: {moveDirection}, Hit Normal: {hit.normal}, Downhill: {isMovingDownhill}");
-                return true;
-            }
+            
+            // Check if the slope angle exceeds the character's slope limit
+            return slopeAngle > characterController.slopeLimit;
         }
-        return false;
+        return false; // Return false if no ground was detected
+    }
+
+    public bool ConsumeMana(int amount) {
+        if (Mana >= amount) {
+            Mana -= amount;
+            // Debug.Log($"{CharacterName} consumed {amount} of mana. Remaining mana is {Mana}");
+            return true;
+        } else {
+            // Debug.Log($"{CharacterName} does not have enough mana!");
+            return false;
+        }
     }
 
 }
