@@ -19,6 +19,8 @@ public class CameraController : MonoBehaviour {
     public float freeLookSpeed = 0.001f;           // Speed for rotating during free look
     private float freeLookYaw = 0f;              // To store yaw rotation for free look
     private float freeLookPitch = 0f;            // Store pitch value for free look rotation
+    private Vector3 freeLookPosition;
+    private Quaternion freeLookRotation;
     private Vector3 freeLookOffset = Vector3.zero;
     private bool isTransitioningFromFreeLook = false; // Flag to indicate transition from free-look
     private Vector3 transitionStartPosition;          // Where the camera starts transitioning from
@@ -28,8 +30,9 @@ public class CameraController : MonoBehaviour {
     private Quaternion transitionTargetRotation;    // The rotation the camera should have at the target position
     float transitionSpeed = 2f;                     // Adjust scaling for desired speed
     float transitionRotationSpeed = 360f;            // Adjust scaling for desired speed
-    private int transitionStage = 0;
-
+    // Not in use private int transitionStage = 0;
+    private Vector3 mouseRightDownPosition;
+    private float dragThreshold = 5f; // Adjust this as needed
 
     private void Start() {
         isFreeLook = false;
@@ -42,41 +45,61 @@ public class CameraController : MonoBehaviour {
 
             playerLock = player.GetComponent<Player>().CameraLock;
 
-            if (!isFreeLook) {
+            if (!isFreeLook && !isTransitioningFromFreeLook) {
                 Vector3 currentEulerAngles = transform.eulerAngles;
                 freeLookYaw = currentEulerAngles.y;  // Set initial yaw to the current Y rotation
                 freeLookPitch = currentEulerAngles.x;  // Set initial pitch to the current X rotation
+                freeLookPosition = transform.position;
+                freeLookRotation = transform.rotation;
+            }
+
+
+            // Detect right mouse button down to store initial position
+            if (Input.GetMouseButtonDown(1)) {
+                mouseRightDownPosition = Input.mousePosition; // Record mouse position for drag detection
             }
 
             // Right-click and drag for free look
             if (Input.GetMouseButton(1) && !Input.GetMouseButton(0)) {
 
-                isFreeLook = true;
+                // Check if drag exceeds drag threshold
+                if (Vector3.Distance(mouseRightDownPosition, Input.mousePosition) >= dragThreshold) {
 
-                float horizontal = Input.GetAxis("Mouse X") * freeLookSpeed * Time.deltaTime;
-                float vertical = -Input.GetAxis("Mouse Y") * freeLookSpeed * Time.deltaTime;
+                    isFreeLook = true;
+                    Debug.Log("Enter FreeLook mode");
 
-                freeLookYaw += horizontal;
-                freeLookPitch = Mathf.Clamp(freeLookPitch + vertical, -30f, 30f); // Limit pitch to prevent extreme angles
+                    float horizontal = Input.GetAxis("Mouse X") * freeLookSpeed * Time.deltaTime;
+                    float vertical = -Input.GetAxis("Mouse Y") * freeLookSpeed * Time.deltaTime;
 
-                // Calculate rotation using yaw and pitch
-                Quaternion rotation = Quaternion.Euler(freeLookPitch, freeLookYaw, 0f);
-                freeLookOffset = rotation * followOffset;
+                    freeLookYaw += horizontal;
+                    freeLookPitch = Mathf.Clamp(freeLookPitch + vertical, -30f, 30f); // Limit pitch to prevent extreme angles
+
+                    // Calculate rotation using yaw and pitch
+                    Quaternion rotation = Quaternion.Euler(freeLookPitch, freeLookYaw, 0f);
+                    freeLookOffset = rotation * followOffset;
+                }
 
             } else if (Input.GetMouseButton(0) && Input.GetMouseButton(1)) {
+                Debug.Log("Both mouse buttons during FreeLook");
                 // Both buttons pressed: Freeze free-look and continue turning
                 // isFreeLook = false;  // Disable free-look when both buttons are pressed
             } else if (Input.GetMouseButtonUp(1)) {
                 // When right mouse button is released
+                if (Vector3.Distance(mouseRightDownPosition, Input.mousePosition) < dragThreshold) {
+                    Debug.Log("Right-click detected without dragging (minimal movement).");
+                    // Handle right-click without drag (e.g., trigger defense or interaction)
+                } else {
+                    Debug.Log("FreeLook Off after drag.");
+                    // Start a smooth transition back to the follow state
+                    freeLookYaw = 0f;  // Reset yaw for smoothness
+                    freeLookPitch = followPitchOffset;  // Reset pitch to the default tilt
+                    // Initiate transition
+                    isTransitioningFromFreeLook = true;
+                    transitionStartPosition = transform.position;  // Capture current position
+                    transitionStartRotation = transform.rotation;  // Capture current rotation
+                }
                 isFreeLook = false;
-                // Start a smooth transition back to the follow state
-                freeLookYaw = 0f;  // Reset yaw for smoothness
-                freeLookPitch = followPitchOffset;  // Reset pitch to the default tilt
-                // Initiate transition
-                isTransitioningFromFreeLook = true;
-                transitionStartPosition = transform.position;  // Capture current position
-                transitionStartRotation = transform.rotation;  // Capture current rotation
-
+                Debug.Log("FreeLook Off");
             }
         }
     }
@@ -90,7 +113,7 @@ public class CameraController : MonoBehaviour {
             bool hasCombatFocus = player.GetComponent<Player>().IsCombatReady;
 
             if (isFreeLook) {
-                
+                Debug.Log("Camera is in Free Look");
                 // Set the camera position based on the calculated offset
                 Vector3 desiredPosition = player.position + freeLookOffset;
                 
@@ -99,10 +122,19 @@ public class CameraController : MonoBehaviour {
                 transform.LookAt(player.position + Vector3.up * 1.5f);
 
             } else if (isTransitioningFromFreeLook) {
+                Debug.Log("Camera is transitioning back from Free Look");
                 // Smooth transition from free-look to follow
 
-                Vector3 targetPosition = player.position + player.rotation * followOffset;
-                Quaternion targetRotation = Quaternion.Euler(followPitchOffset, player.eulerAngles.y, 0f);
+                Vector3 targetPosition;
+                Quaternion targetRotation;
+
+                if (hasCombatFocus) {
+                    targetPosition = freeLookPosition;
+                    targetRotation = freeLookRotation;
+                } else {
+                    targetPosition = player.position + player.rotation * followOffset;
+                    targetRotation = Quaternion.Euler(followPitchOffset, player.eulerAngles.y, 0f);
+                }
 
                 // Lerp position and Slerp rotation with a fixed interpolation factor for smoothness
                 float interpolationFactor = 0.1f;  // Increase or decrease this to control transition smoothness
@@ -112,15 +144,18 @@ public class CameraController : MonoBehaviour {
                 // Check if the transition is close to completion
                 if (Vector3.Distance(transform.position, targetPosition) < 0.05f && 
                     Quaternion.Angle(transform.rotation, targetRotation) < 0.05f) {
-                    isTransitioningFromFreeLook = false; // End the transition
-                    // Reset yaw and pitch after transition completes
-                    freeLookYaw = 0f;
-                    freeLookPitch = followPitchOffset; // Reset pitch to default tilt value
-                    freeLookOffset = Vector3.zero;
+                        Debug.Log("Camera transition from Free Look is finished");
+                        isTransitioningFromFreeLook = false; // End the transition
+                        // Reset yaw and pitch after transition completes
+                        freeLookYaw = 0f;
+                        freeLookPitch = followPitchOffset; // Reset pitch to default tilt value
+                        freeLookOffset = Vector3.zero;
                 }
             } else {
 
                 if (playerLock) {
+
+                    Debug.Log("Player Lock / Camera Lock ON");
 
                     // Player lock mode: follow player’s position and direction
                     Vector3 targetPosition = player.position + player.rotation * followOffset;
@@ -137,6 +172,8 @@ public class CameraController : MonoBehaviour {
 
 
                 if (hasCombatFocus) {
+
+                    Debug.Log("Has Combat Focus / Is Combat Ready ON");
 
                     // Step 1: Rotation adjustments to keep the player in the same spot within the view
                     Vector3 playerMovementOffset = player.position - lastPlayerPosition;
@@ -166,58 +203,6 @@ public class CameraController : MonoBehaviour {
                     // Update the last known player position
                     lastPlayerPosition = player.position;
 
-                    // // Step 2: Adjust position if there’s a forward (distance) offset
-                    // if (Mathf.Abs(forwardOffset) > 0.01f) { // Adjust threshold as needed
-                    //     Vector3 targetPosition = player.position + combatStartRotation * combatFollowOffset;
-                    //     transform.position = Vector3.Lerp(transform.position, targetPosition, followSpeed * Time.deltaTime);
-                    // }
-
-                    // // Apply the fixed rotation to maintain orientation
-                    // transform.rotation = combatStartRotation;
-
-                    // // Update the last known player position
-                    // lastPlayerPosition = player.position;
-
-/* 
-                    float horizontalRotationAdjustment = localOffset.x * followSpeed * Time.deltaTime;
-                    float verticalRotationAdjustment = -localOffset.z * followSpeed * Time.deltaTime;
-
-                    // Adjust rotation to maintain player position in the camera's frame
-                    combatStartRotation *= Quaternion.Euler(verticalRotationAdjustment, horizontalRotationAdjustment, 0);
-
-                    transform.rotation = combatStartRotation;
-
-                    // Step 2: Maintain the constant distance from the player
-                    Vector3 targetPosition = player.position + combatStartRotation * followOffset;
-                    transform.position = Vector3.Lerp(transform.position, targetPosition, followSpeed * Time.deltaTime);
-
-                    lastPlayerPosition = player.position;
- */
-
-/* 
-                    // In combat focus mode, the camera always looks at the player
-                    // Quaternion targetRotation = Quaternion.LookRotation(player.position - transform.position, Vector3.up);
-
-                    // Rotate smoothly to keep player centered in view without moving position
-                    // not at all working --> transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * followSpeed);
-
-                    // Calculate player movement vector in local space
-                    Vector3 playerMovement = transform.InverseTransformDirection(player.position - lastPlayerPosition);
-
-                    // Apply small incremental adjustments to combatStartRotation based on player movement
-                    if (playerMovement.x != 0 || playerMovement.z != 0) {
-                        // Horizontal and vertical adjustments based on movement vector
-                        float horizontalAdjustment = playerMovement.x * followSpeed * Time.deltaTime;
-                        float verticalAdjustment = playerMovement.z * followSpeed * Time.deltaTime;
-
-                        // Modify combatStartRotation without recalculating direction
-                        combatStartRotation *= Quaternion.Euler(-verticalAdjustment, horizontalAdjustment, 0);
-                        transform.rotation = combatStartRotation;
-                    }
-
-                    // Update lastPlayerPosition for the next frame
-                    lastPlayerPosition = player.position;
- */
                 }
 
             }
@@ -229,7 +214,7 @@ public class CameraController : MonoBehaviour {
         player = playerTransform;   // Assign the player reference
         isTransitioning = true;     // Start transitioning to the player
         followPlayer = false;       // Can't follow until after we have transitioned
-        transitionStage = 0;        // Reset the transition stages
+        // Not in use transitionStage = 0;        // Reset the transition stages
         // Calculate the transition points
         // transitionTargetPosition = player.position + followOffset;
         transitionTargetPosition = player.position + player.rotation * followOffset;
@@ -249,10 +234,11 @@ public class CameraController : MonoBehaviour {
         if (Quaternion.Angle(transform.rotation, transitionTargetRotation) < 0.1f && Vector3.Distance(transform.position, transitionTargetPosition) < 0.1f) {
             isTransitioning = false;
             followPlayer = true; // Start following the player after transition is complete
-            Debug.Log($"End position before follow: {transform.position}");
+            // Debug.Log($"End position before follow: {transform.position}");
         }
     }
 
+/* This is not used anymore - was initial transition to player during player selection
     private void SmoothTransitionToPosition() {
         
         Quaternion lookRotation;
@@ -292,6 +278,7 @@ public class CameraController : MonoBehaviour {
                 break;
         }
     }
+*/    
 
     public void DisableFollowing() {
         followPlayer = false; // Disable following

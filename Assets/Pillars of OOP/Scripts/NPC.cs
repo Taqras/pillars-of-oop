@@ -24,7 +24,7 @@ public class NPC : Character {
         // Placeholder: Play defense animation, reduce damage, etc.
     }
 
-    public override void TakeDamage(int damage) {
+    public override void TakeDamage(int damage, Transform attacker) {
         // Reduce health or other damage-related logic
         Health -= damage;
         Debug.Log($"{gameObject.name} took {damage} damage. Health is now {Health}.");

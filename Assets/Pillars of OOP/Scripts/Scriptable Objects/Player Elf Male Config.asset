@@ -17,8 +17,10 @@ MonoBehaviour:
   characterName: A male elf
   description: 'He looks sly and devious. He might surprise you. '
   attackDistance: 10
+  attackPower: 20
   attackEffect: {fileID: 2944396702758532163, guid: e190bf97c041e58448af6b043116cba0,
     type: 3}
   effectDuration: 2
   autoDestroy: 1
-  armour: 100
+  armour: 0
+  usesMana: 1

@@ -1,11 +1,15 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using System;
 
 public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInteractable {
 
     protected CharacterController characterController;
+
+    public event Action<int> OnHealthChanged;
+    public event Action<int> OnManaChanged;
+
 
     // Speed is protected and initialized with a default value
     private float speed = 2f; // Backing field for speed, defaults to something sensible
@@ -33,15 +37,12 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
     public virtual int Health {
         get => health;
         protected set {
-            if (value >= 0) {
-                health = value;
-            } else {
-                health = 0;
-            }
+            health = Mathf.Clamp(value, 0, MaxHealth);
+            OnHealthChanged?.Invoke(health);
         }
     }
 
-    private int maxHealth = 0; // Backing field for maxHealth, defaults to none
+    private int maxHealth = 100; // Backing field for maxHealth, defaults to none
     public virtual int MaxHealth {
         get => maxHealth;
         protected set {
@@ -58,15 +59,12 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
     public virtual int Mana {
         get => mana;
         protected set {
-            if (value >= 0) {
-                mana = value;
-            } else {
-                mana = 0;
-            }
+            mana = Mathf.Clamp(value, 0, MaxMana);
+            OnManaChanged?.Invoke(mana);
         }
     }
 
-    private int maxMana = 0; // Backing field for maxMana, defaults to none
+    private int maxMana = 100; // Backing field for maxMana, defaults to none
     public virtual int MaxMana {
         get => maxMana;
         protected set {
@@ -102,12 +100,12 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
     }
 
     protected void Awake() {
-        Debug.Log($"{gameObject.name} running Character.Awake()");
+        // Debug.Log($"{gameObject.name} running Character.Awake()");
         characterController = GetComponent<CharacterController>();
         if (characterController == null) {
             Debug.LogError("CharacterController is missing!");
         } else {
-            Debug.Log("CharacterController is assigned successfully.");
+            // Debug.Log("CharacterController is assigned successfully.");
         }
     }
 
@@ -115,7 +113,7 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
     public abstract void Interact();
     public abstract void Attack();
     public abstract void Defend();
-    public abstract void TakeDamage(int damage);
+    public abstract void TakeDamage(int damage, Transform attacker);
     public abstract void Die();
 
     public bool IsSteepSlope(Vector3 position) {
@@ -134,10 +132,10 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
     public bool ConsumeMana(int amount) {
         if (Mana >= amount) {
             Mana -= amount;
-            Debug.Log($"{CharacterName} consumed {amount} of mana. Remaining mana is {Mana}");
+            // Debug.Log($"{CharacterName} consumed {amount} of mana. Remaining mana is {Mana}");
             return true;
         } else {
-            Debug.Log($"{CharacterName} does not have enough mana!");
+            // Debug.Log($"{CharacterName} does not have enough mana!");
             return false;
         }
     }

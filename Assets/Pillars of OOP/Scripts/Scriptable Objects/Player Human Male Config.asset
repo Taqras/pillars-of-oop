@@ -17,7 +17,9 @@ MonoBehaviour:
   characterName: A male human
   description: This one is strong and sturdy. Not to mess with.
   attackDistance: 2
+  attackPower: 10
   attackEffect: {fileID: 0}
   effectDuration: 2
   autoDestroy: 1
-  armour: 100
+  armour: 5
+  usesMana: 0

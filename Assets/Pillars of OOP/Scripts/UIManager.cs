@@ -4,14 +4,17 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 
+
 public class UIManager : MonoBehaviour
 {
     public event Action OnCharacterSelected;
-    [SerializeField] private GameObject characterSelectionPanel;             // Assign in Inspector
-    [SerializeField] private Button characterSelectionButton;                // Assign in Inspector
-    [SerializeField] private GameObject inspectionPanel;                     // Assign in Inspector
-    [SerializeField] private TMPro.TextMeshProUGUI inspectionNameText;       // Assign in Inspector
+    [SerializeField] private GameObject characterSelectionPanel;              // Assign in Inspector
+    [SerializeField] private Button characterSelectionButton;                 // Assign in Inspector
+    [SerializeField] private GameObject inspectionPanel;                      // Assign in Inspector
+    [SerializeField] private TMPro.TextMeshProUGUI inspectionNameText;        // Assign in Inspector
     [SerializeField] private TMPro.TextMeshProUGUI inspectionDescriptionText; // Assign in Inspector
+    [SerializeField] private Slider healthSlider;                             // Assign in Inspector
+    [SerializeField] private Slider manaSlider;                               // Assign in Inspector
 
     public void Start() {
         inspectionPanel.SetActive(false);
@@ -50,6 +53,27 @@ public class UIManager : MonoBehaviour
     public void OnClickCharacterSelectionButton() {
         Debug.Log("A character has been selected");
         OnCharacterSelected?.Invoke();  // Trigger the event to notify GameManager
+
+    }
+
+    public void SetHealthMaxValue(int maxHealth) {
+        healthSlider.maxValue = maxHealth;
+    }
+
+    public void SetManaMaxValue(int maxMana) {
+        manaSlider.maxValue = maxMana;
+    }
+
+    public void UpdateHealthIndicator(int health) {
+        healthSlider.value = health;
+    }
+
+    public void UpdateManaIndicator(int mana) {
+        manaSlider.value = mana;
+    }
+
+    public void DisplayMana(bool showMana) {
+        manaSlider.gameObject.SetActive(showMana);
     }
 
 }
