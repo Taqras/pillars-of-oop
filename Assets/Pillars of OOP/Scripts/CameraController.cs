@@ -32,7 +32,7 @@ public class CameraController : MonoBehaviour {
     float transitionRotationSpeed = 360f;            // Adjust scaling for desired speed
     // Not in use private int transitionStage = 0;
     private Vector3 mouseRightDownPosition;
-    private float dragThreshold = 5f; // Adjust this as needed
+    private float dragThreshold = 2f; // Adjust this as needed
 
     private void Start() {
         isFreeLook = false;
@@ -40,6 +40,9 @@ public class CameraController : MonoBehaviour {
     }
 
     private void Update() {
+
+        // Update processes user input and sets flags or variables for camera behavior
+        // This encapsulates input logic and separates it from the camera's transformation logic
 
         if (followPlayer && player != null) {
 
@@ -66,7 +69,7 @@ public class CameraController : MonoBehaviour {
                 if (Vector3.Distance(mouseRightDownPosition, Input.mousePosition) >= dragThreshold) {
 
                     isFreeLook = true;
-                    Debug.Log("Enter FreeLook mode");
+                    // Debug.Log("Enter FreeLook mode");
 
                     float horizontal = Input.GetAxis("Mouse X") * freeLookSpeed * Time.deltaTime;
                     float vertical = -Input.GetAxis("Mouse Y") * freeLookSpeed * Time.deltaTime;
@@ -80,16 +83,16 @@ public class CameraController : MonoBehaviour {
                 }
 
             } else if (Input.GetMouseButton(0) && Input.GetMouseButton(1)) {
-                Debug.Log("Both mouse buttons during FreeLook");
+                // Debug.Log("Both mouse buttons during FreeLook");
                 // Both buttons pressed: Freeze free-look and continue turning
                 // isFreeLook = false;  // Disable free-look when both buttons are pressed
             } else if (Input.GetMouseButtonUp(1)) {
                 // When right mouse button is released
                 if (Vector3.Distance(mouseRightDownPosition, Input.mousePosition) < dragThreshold) {
-                    Debug.Log("Right-click detected without dragging (minimal movement).");
+                    // Debug.Log("Right-click detected without dragging (minimal movement).");
                     // Handle right-click without drag (e.g., trigger defense or interaction)
                 } else {
-                    Debug.Log("FreeLook Off after drag.");
+                    // Debug.Log("FreeLook Off after drag.");
                     // Start a smooth transition back to the follow state
                     freeLookYaw = 0f;  // Reset yaw for smoothness
                     freeLookPitch = followPitchOffset;  // Reset pitch to the default tilt
@@ -99,12 +102,15 @@ public class CameraController : MonoBehaviour {
                     transitionStartRotation = transform.rotation;  // Capture current rotation
                 }
                 isFreeLook = false;
-                Debug.Log("FreeLook Off");
+                // Debug.Log("FreeLook Off");
             }
         }
     }
 
     private void LateUpdate() {
+
+        // LateUpdate applies camera movement and rotation, ensuring transformations happen after other updates
+        // Encapsulation of transformation logic prevents interdependency issues
 
         if (isTransitioning && player != null) {
             SmoothEnterPosition();
@@ -113,7 +119,7 @@ public class CameraController : MonoBehaviour {
             bool hasCombatFocus = player.GetComponent<Player>().IsCombatReady;
 
             if (isFreeLook) {
-                Debug.Log("Camera is in Free Look");
+                // Debug.Log("Camera is in Free Look");
                 // Set the camera position based on the calculated offset
                 Vector3 desiredPosition = player.position + freeLookOffset;
                 
@@ -122,7 +128,7 @@ public class CameraController : MonoBehaviour {
                 transform.LookAt(player.position + Vector3.up * 1.5f);
 
             } else if (isTransitioningFromFreeLook) {
-                Debug.Log("Camera is transitioning back from Free Look");
+                // Debug.Log("Camera is transitioning back from Free Look");
                 // Smooth transition from free-look to follow
 
                 Vector3 targetPosition;
@@ -144,7 +150,7 @@ public class CameraController : MonoBehaviour {
                 // Check if the transition is close to completion
                 if (Vector3.Distance(transform.position, targetPosition) < 0.05f && 
                     Quaternion.Angle(transform.rotation, targetRotation) < 0.05f) {
-                        Debug.Log("Camera transition from Free Look is finished");
+                        // Debug.Log("Camera transition from Free Look is finished");
                         isTransitioningFromFreeLook = false; // End the transition
                         // Reset yaw and pitch after transition completes
                         freeLookYaw = 0f;
@@ -155,7 +161,7 @@ public class CameraController : MonoBehaviour {
 
                 if (playerLock) {
 
-                    Debug.Log("Player Lock / Camera Lock ON");
+                    // Debug.Log("Player Lock / Camera Lock ON");
 
                     // Player lock mode: follow player’s position and direction
                     Vector3 targetPosition = player.position + player.rotation * followOffset;
@@ -173,7 +179,7 @@ public class CameraController : MonoBehaviour {
 
                 if (hasCombatFocus) {
 
-                    Debug.Log("Has Combat Focus / Is Combat Ready ON");
+                    // Debug.Log("Has Combat Focus / Is Combat Ready ON");
 
                     // Step 1: Rotation adjustments to keep the player in the same spot within the view
                     Vector3 playerMovementOffset = player.position - lastPlayerPosition;
@@ -192,7 +198,7 @@ public class CameraController : MonoBehaviour {
                     // Vector3 targetPosition = player.position + combatStartRotation * combatFollowOffset;
                     if (Mathf.Abs(forwardOffset) > 0.01f) { // Adjust threshold as needed
                         Vector3 targetPosition = player.position + combatStartRotation * combatFollowOffset;
-                        Debug.Log($"Combat Target Position: {targetPosition} | Player Position: {player.position} | Combat Offset: {combatFollowOffset} | Normal Offset: {followOffset}");
+                        // Debug.Log($"Combat Target Position: {targetPosition} | Player Position: {player.position} | Combat Offset: {combatFollowOffset} | Normal Offset: {followOffset}");
 
                         transform.position = targetPosition; // Directly set the position for combat mode
                     }

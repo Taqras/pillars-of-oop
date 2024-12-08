@@ -725,6 +725,7 @@ GameObject:
   - component: {fileID: 95674028643950644}
   - component: {fileID: -8327842783940633483}
   - component: {fileID: -2299938565878438591}
+  - component: {fileID: 4351420974462159165}
   m_Layer: 0
   m_Name: Rabbit 1
   m_TagString: Untagged
@@ -784,6 +785,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   enemyConfig: {fileID: 11400000, guid: f7b01d34a378a1413913cce5287128d2, type: 2}
+  healthBarPrefab: {fileID: 5263652530238935780, guid: 433392da47378e02c9fa8039123ba9e0,
+    type: 3}
   roamDirectionChangeMin: 2
   roamDirectionChangeMax: 5
 --- !u!143 &-2299938565878438591
@@ -812,6 +815,27 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0.3, z: 0.05}
+--- !u!65 &4351420974462159165
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1588090451174212}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.67084503, y: 0.57917786, z: 0.943779}
+  m_Center: {x: -0.008495331, y: 0.33228302, z: 0.028110504}
 --- !u!1 &1593323770353162
 GameObject:
   m_ObjectHideFlags: 0

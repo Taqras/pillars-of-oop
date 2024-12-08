@@ -6,6 +6,8 @@ using UnityEngine.EventSystems;
 public class ObjectSelector : MonoBehaviour
 {
     public static GameObject GetClickedObject() {
+        // Single Responsibility Principle: ObjectSelector focuses solely on detecting clicked objects
+        // without being tied to any specific gameplay logic.
 
         if (EventSystem.current.IsPointerOverGameObject()) {
             Debug.Log("...on UI - let Unity handle it");

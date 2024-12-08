@@ -5,6 +5,9 @@ using System;
 
 public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInteractable {
 
+    // The Character class serves as the base class for all character types.
+    // Abstract methods enforce that each subclass defines its unique behavior, such as Interact() and Move().
+
     protected CharacterController characterController;
 
     public event Action<int> OnHealthChanged;
@@ -30,6 +33,9 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
             }
         }
     }
+
+    // Encapsulation ensures that Health and Mana can only be modified through controlled mechanisms,
+    // maintaining game integrity and allowing for event-driven UI updates.
 
     public string Description { get; protected set; } = "No description available."; // Default description
 
@@ -108,6 +114,9 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
             // Debug.Log("CharacterController is assigned successfully.");
         }
     }
+
+    // Inherited classes such as Player and Enemy will overriding these base class methods to include specific logic,
+    // such as aggression triggers, armour or animations.
 
     public abstract void Move();
     public abstract void Interact();

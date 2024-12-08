@@ -15,15 +15,31 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TMPro.TextMeshProUGUI inspectionDescriptionText; // Assign in Inspector
     [SerializeField] private Slider healthSlider;                             // Assign in Inspector
     [SerializeField] private Slider manaSlider;                               // Assign in Inspector
+    [SerializeField] private GameObject interactionPanel;                      // Assign in Inspector
+    [SerializeField] private TMPro.TextMeshProUGUI interactionMessage;        // Assign in Inspector
 
     public void Start() {
         inspectionPanel.SetActive(false);
+        // interactionPanel.SetActive(false);
         // ShowCharacterSelection(false);
         ReadyToSelect(false);
     }
 
     public void ShowCharacterSelection(bool show) {
         characterSelectionPanel.SetActive(show);
+    }
+
+    public void ShowInteractionPanel(string message) {
+        interactionPanel.SetActive(true);
+        interactionMessage.text = message;
+    }
+
+    public void OnClickInteractionButton() {
+        interactionPanel.SetActive(false);
+    }
+
+    public void HideInteractionPanel() {
+        interactionPanel.SetActive(false);
     }
 
     public void ShowInspectionPanel(bool show) {
