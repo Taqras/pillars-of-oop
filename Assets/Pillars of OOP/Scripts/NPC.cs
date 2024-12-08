@@ -33,7 +33,7 @@ public class NPC : Character {
     }
 
     public override void Interact() {
-        // Polymorphism: The Interact() method is overridden to provide NPC-specific interaction logic
+        // POLYMORPHISM: The Interact() method is overridden to provide NPC-specific interaction logic
         // while still maintaining a shared interface with other character types.
         Player player = gameManager.GetActivePlayer();
 

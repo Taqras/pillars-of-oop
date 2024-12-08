@@ -259,6 +259,7 @@ public class Player : Character {
         Debug.Log($"Gained {amount} mana. Current mana: {Mana}");
     }
 
+    // POLYMORPHISM
     public override void Move() {
 
         // Specific movement for Player
@@ -494,7 +495,7 @@ public class Player : Character {
 
     }
 
-
+    // POLYMORPHISM
     public override void Defend() {
         if (IsCombatReady) {
             // trigger defend animation and increase defence variable to reduce health loss on hit
@@ -548,6 +549,7 @@ public class Player : Character {
         Debug.Log("Armour reverted to original value.");
     }
 
+
     public override void Interact() {
         if (!IsCombatReady && target != null) {
 
@@ -586,6 +588,7 @@ public class Player : Character {
         }
     }
 
+    // POLYMORPHISM
     public override void TakeDamage(int damage, Transform attacker) {
 
         if (!isDead) {
