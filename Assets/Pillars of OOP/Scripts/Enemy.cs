@@ -271,6 +271,7 @@ private void PursueAndAttack() {
         }
     }
     
+    // POLYMORPHISM
     public override void Interact() {
         Debug.Log($"{CharacterName}Interacting");
         // Logic when Enemy interacts with Player

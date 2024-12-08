@@ -5,6 +5,8 @@ using System;
 
 public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInteractable {
 
+    // INHERITANCE
+    // ABSTRACTION
     // The Character class serves as the base class for all character types.
     // Abstract methods enforce that each subclass defines its unique behavior, such as Interact() and Move().
 
@@ -21,6 +23,7 @@ public abstract class Character : MonoBehaviour, IInspectable, IDamageable, IInt
         protected set => speed = value; // Correct syntax
     }
 
+    // ENCAPSULATION
     // Encapsulated Name: ensure that all derived classes have a name
     private string characterName = "Unnamed"; // Backing field for name (name is reserved in unity, hence characterName)
     public virtual string CharacterName {
