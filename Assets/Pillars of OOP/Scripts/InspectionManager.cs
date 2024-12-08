@@ -2,8 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class InspectionManager : MonoBehaviour
-{
+public class InspectionManager : MonoBehaviour {
+    // Encapsulation: Centralizes the logic for displaying inspection details,
+    // ensuring that UI updates are decoupled from the inspected objects.
     public UIManager uiManager; // Assign in Inspector or find at runtime
 
     private void Awake() {

@@ -5,7 +5,9 @@ using UnityEngine.EventSystems;
 using System.Linq;
 
 public class GameManager : MonoBehaviour {
-    [SerializeField] private UIManager uiManager; // Reference to UIManager assigned in Inspector
+    // GameManager acts as the central hub, managing game states like Combat Mode
+    // and coordinating interactions between various game objects.
+    public UIManager UIManager { get; private set; }
     [SerializeField] private InspectionManager inspectionManager; // Reference to InspectionManager assigned in Inspector
     public CameraController cameraScript;
     public GameObject[] players; // Array of potential player characters
@@ -16,14 +18,17 @@ public class GameManager : MonoBehaviour {
     private Dictionary<EnemyType, List<Transform>> spawnPointsByType;
     public Dictionary<Transform, List<GameObject>> activeEnemiesBySpawnPoint = new Dictionary<Transform, List<GameObject>>();
     public int maxEnemiesPerSpawnPoint = 5;
+    public bool IsCombatMode { get; private set; } = false;
 
     private void Awake() {
-        uiManager = FindObjectOfType<UIManager>(); // Dynamically assign UIManager
-        if (uiManager == null) {
+
+        UIManager = FindObjectOfType<UIManager>(); // Dynamically assign UIManager
+
+        if (UIManager == null) {
             Debug.LogError("UIManager not found in the scene. Make sure there's a UIManager in the scene.");
         } else {
             // Subscribe to the event
-            uiManager.OnCharacterSelected += HandleCharacterSelected;
+            UIManager.OnCharacterSelected += HandleCharacterSelected;
         }
 
         inspectionManager = FindObjectOfType<InspectionManager>(); // Dynamically assign InspectionManager
@@ -31,13 +36,23 @@ public class GameManager : MonoBehaviour {
             Debug.LogError("InspectionManager not found in the scene. Make sure there's an InspectionManager in the scene.");
         }
     }
+    
     private void Start() {
+        
         // Initial camera settings for intro
         cameraScript.DisableFollowing();
         haveCharacter = false;
 
         // Ensure the character selection panel is shown initially
-        uiManager.ShowCharacterSelection(true);
+        UIManager.ShowCharacterSelection(true);
+        UIManager.ShowInteractionPanel(
+            "Controls:\n" +
+            "  Move: W=Forwards, A=Strafe left, S=Strafe right, S=Backwards.\n" +
+            "  Left mouse button: Click to inspect or attack. Drag to turn.\n" +
+            "  Right mouse button: Click to interact or defend. Drag to free-look.\n" +
+            "  Toggle walk/run: Shift\n" +
+            "  Toggle fight/explore: Tab"
+        );
 
         enemyPrefabs = new Dictionary<EnemyType, GameObject>();
         foreach (var mapping in enemyPrefabMappings) {
@@ -51,6 +66,7 @@ public class GameManager : MonoBehaviour {
 
 
     private void Update() {
+
         if (!haveCharacter) {
             if (Input.GetMouseButtonDown(0)) {
                 Debug.Log("Game Manager registered a click.");
@@ -64,13 +80,41 @@ public class GameManager : MonoBehaviour {
                         Debug.Log("Selected a player: " + playerComponent.name);
                         selectedCharacter = clickedObject;
                         inspectionManager.Inspect(selectedCharacter);
-                        uiManager.ReadyToSelect(true);  // Enable the character selection button
+                        UIManager.ReadyToSelect(true);  // Enable the character selection button
                     } else {
                         Debug.Log("The clicked object is not a player.");
-                        uiManager.ReadyToSelect(false);
+                        UIManager.ReadyToSelect(false);
                     }
                 }
             }
+        } else { // we have a character
+            if (Input.GetKeyDown(KeyCode.Tab)) {
+                ToggleCombatMode();
+            }
+        }
+    }
+
+    public void ToggleCombatMode() {
+        IsCombatMode = !IsCombatMode;
+
+        Debug.Log(IsCombatMode ? "Entering Combat Mode" : "Exiting Combat Mode");
+
+        // Observer Pattern: Notify all enemies of combat mode changes without requiring direct references,
+        // maintaining loose coupling between GameManager and individual enemies.
+        var allEnemies = FindObjectsOfType<Enemy>();
+        foreach (var enemy in allEnemies) {
+            Debug.Log($"{enemy.CharacterName}: Toggling health bar to {(IsCombatMode ? "visible" : "hidden")}");
+            if (IsCombatMode) {
+                enemy.ShowHealthBar();
+            } else {
+                enemy.HideHealthBar();
+            }
+        }
+
+        // Notify the active player
+        Player activePlayer = GetActivePlayer();
+        if (activePlayer != null) {
+            activePlayer.SetCombatMode(IsCombatMode);
         }
     }
 
@@ -81,16 +125,16 @@ public class GameManager : MonoBehaviour {
             Player playerComponent = selectedCharacter.GetComponent<Player>();
             if (playerComponent != null) {
                 // Subscribe UIManager to player's health and mana events
-                playerComponent.OnHealthChanged += uiManager.UpdateHealthIndicator;
-                playerComponent.OnManaChanged += uiManager.UpdateManaIndicator;
+                playerComponent.OnHealthChanged += UIManager.UpdateHealthIndicator;
+                playerComponent.OnManaChanged += UIManager.UpdateManaIndicator;
 
                 // Set the initial values for the health and mana sliders
-                uiManager.UpdateHealthIndicator(playerComponent.Health);
-                uiManager.UpdateManaIndicator(playerComponent.Mana);
+                UIManager.UpdateHealthIndicator(playerComponent.Health);
+                UIManager.UpdateManaIndicator(playerComponent.Mana);
 
                 // Also set the max values for the sliders
-                uiManager.SetHealthMaxValue(playerComponent.MaxHealth);
-                uiManager.SetManaMaxValue(playerComponent.MaxMana);
+                UIManager.SetHealthMaxValue(playerComponent.MaxHealth);
+                UIManager.SetManaMaxValue(playerComponent.MaxMana);
 
                 // Activate the selected player
                 ActivatePlayer(playerComponent);
@@ -111,15 +155,15 @@ public class GameManager : MonoBehaviour {
         cameraScript.AttachToPlayer(selectedPlayer.transform);
 
         // Hide the character selection and inspection UI after activation
-        uiManager.ShowCharacterSelection(false);
-        uiManager.ShowInspectionPanel(false);
+        UIManager.ShowCharacterSelection(false);
+        UIManager.ShowInspectionPanel(false);
 
-        uiManager.SetHealthMaxValue(selectedPlayer.MaxHealth);
-        uiManager.UpdateHealthIndicator(selectedPlayer.Health);
+        UIManager.SetHealthMaxValue(selectedPlayer.MaxHealth);
+        UIManager.UpdateHealthIndicator(selectedPlayer.Health);
 
-        uiManager.DisplayMana(selectedPlayer.usesMana);
-        uiManager.SetManaMaxValue(selectedPlayer.MaxMana);
-        uiManager.UpdateManaIndicator(selectedPlayer.Mana);
+        UIManager.DisplayMana(selectedPlayer.usesMana);
+        UIManager.SetManaMaxValue(selectedPlayer.MaxMana);
+        UIManager.UpdateManaIndicator(selectedPlayer.Mana);
     }
 
     // Using LINQ (Language Integrated Query) Method Syntax
@@ -226,5 +270,22 @@ public class GameManager : MonoBehaviour {
         return null;
     }
 
+    public void HandleInteraction(GameObject target) {
+        // Check if the target is interactable
+        if (target.TryGetComponent<IInteractable>(out IInteractable interactable)) {
+            interactable.Interact(); // Call the generic interaction
+        } else {
+            Debug.Log($"{target.name} is not interactable.");
+        }
+        
+        // Normal assign, null-check, do construct:
+        // NPC interactable = target.GetComponent<IInteractable>();
+        // if (interactable != null) {
+        //     interactable.Interact(); // Call the interactable's interaction logic
+        // } else {
+        //     Debug.Log($"{target.name} is not interactable.");
+        // }
+
+    }
 
 }

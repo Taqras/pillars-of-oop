@@ -5,15 +5,15 @@ using UnityEngine.EventSystems;
 using System.Linq;
 
 public class Player : Character {
-    [SerializeField] private UIManager uiManager; // Reference to UIManager assigned in Inspector
+    // [SerializeField] private UIManager uiManager; // Reference to UIManager assigned in Inspector
     [SerializeField] private InspectionManager inspectionManager; // Reference to InspectionManager assigned in Inspector
-    // private CharacterController characterController; defined in the character base class
+    private GameManager gameManager;
     private Animator animator;
     public bool isActive = false;  // Indicates if this player is currently active
     private Transform target;
     private Vector3 mouseLeftDownPosition;   // Used to separate click from click-and-drag
     private Vector3 mouseRightDownPosition;  // Used to separate click from click-and-drag
-    private float clickThreshold = 0.1f;
+    private float clickThreshold = 0.5f;
 
     private float jumpForce = 8f;         // The force applied when jumping (adjust as needed)
     private float gravity = 20f;          // Gravity force applied when the character is not grounded
@@ -51,29 +51,22 @@ public class Player : Character {
             isCombatReady = value;
             if (isCombatReady) {
                 Debug.Log($"{gameObject.name} entered focus mode. Click to attack.");
-                // Additional logic for entering combat mode (e.g., draw weapon)
             } else {
                 Debug.Log($"{gameObject.name} exited focus mode. Click to inspect.");
-                // Additional logic for exiting combat mode (e.g., sheathe weapon)
             }
         }
     }
 
     new private void Awake() { // new because we're hiding the same-named method in the character class and calling explicitly
 
-        // Debug.Log($"{gameObject.name} running Player.Awake()");
         // Ensure the base class's Awake is called
         base.Awake(); // Explicitly calling the base class Awke() to initialize characterController
         
-        // characterController = GetComponent<CharacterController>(); defined in the character base class
         animator = GetComponent<Animator>();
 
-        uiManager = FindObjectOfType<UIManager>(); // Dynamically assign UIManager
-        if (uiManager != null) {
-            OnHealthChanged += uiManager.UpdateHealthIndicator;
-            OnManaChanged += uiManager.UpdateManaIndicator;
-        } else {
-            Debug.LogError("UIManager not found in the scene. Make sure there's a UIManager in the scene.");
+        gameManager = FindObjectOfType<GameManager>(); // Dynamically assign InspectionManager
+        if (gameManager == null) {
+            Debug.LogError("GameManager not found in the scene. Make sure there's a GameManager in the scene.");
         }
 
         inspectionManager = FindObjectOfType<InspectionManager>(); // Dynamically assign InspectionManager
@@ -83,6 +76,16 @@ public class Player : Character {
     }
 
     private void Start() {
+
+        // Ensure GameManager and UIManager are ready
+        if (gameManager != null && gameManager.UIManager != null) {
+            OnHealthChanged += gameManager.UIManager.UpdateHealthIndicator;
+            OnManaChanged += gameManager.UIManager.UpdateManaIndicator;
+            Debug.Log("Player: Health and Mana updates are now bound to UIManager.");
+        } else {
+            Debug.LogError("GameManager or UIManager not initialized. Unable to bind health and mana updates.");
+        }
+
         Health = 100; // needs to be persistent
         Mana = 100;  // needs to be persistent
         MaxHealth = 100; // needs to be persistent
@@ -129,9 +132,9 @@ public class Player : Character {
                 Debug.LogError($"CharacterController is null in {gameObject.name}'s Update method.");
             }
 
-            if (Input.GetKeyDown(KeyCode.Tab)) {
-                ToggleFocusMode(); // Toggle combat readiness (focus mode) on Tab press
-            }
+            // if (Input.GetKeyDown(KeyCode.Tab)) {
+            //     ToggleFocusMode(); // Toggle combat readiness (focus mode) on Tab press
+            // }
 
             if (Input.GetKeyDown(KeyCode.LeftShift)) {
                 // Toggle the isRunning state only when the Shift key is pressed down
@@ -172,9 +175,10 @@ public class Player : Character {
                 if (Vector3.Distance(mouseRightDownPosition, Input.mousePosition) < clickThreshold) {
                     // Minimal movement, trigger defense or interaction
                     if (IsCombatReady) {
-                        Debug.Log("Right mouse button up - trigger defense");
+                        Debug.Log("Right mouse button clicked - trigger defense");
                         Defend(); // Trigger defense if in combat mode
                     } else {
+                        Debug.Log("Right mouse button clicked - trigger interaction");
                         Interact(); // Interact if not in combat mode
                     }
                 }
@@ -188,13 +192,24 @@ public class Player : Character {
         }
     }
 
-    private void ToggleFocusMode() {
-    IsCombatReady = !IsCombatReady; // Toggle the combat readiness flag
-        if (IsCombatReady) {
-            Debug.Log($"{gameObject.name} entered focus mode. Click to attack.");
+    // private void ToggleFocusMode() {
+    // IsCombatReady = !IsCombatReady; // Toggle the combat readiness flag
+    //     if (IsCombatReady) {
+    //         Debug.Log($"{gameObject.name} entered focus mode. Click to attack.");
+    //         SetCameraLock(false);
+    //     } else {
+    //         Debug.Log($"{gameObject.name} exited focus mode. Click to inspect.");
+    //         SetCameraLock(true);
+    //     }
+    // }
+
+    public void SetCombatMode(bool isCombatMode) {
+        IsCombatReady = isCombatMode;
+        if (isCombatMode) {
+            Debug.Log($"{gameObject.name} is now in combat mode.");
             SetCameraLock(false);
         } else {
-            Debug.Log($"{gameObject.name} exited focus mode. Click to inspect.");
+            Debug.Log($"{gameObject.name} exited combat mode.");
             SetCameraLock(true);
         }
     }
@@ -205,24 +220,28 @@ public class Player : Character {
     }
 
     private void InspectObject(GameObject target) {
+
         if (target != null) {
-            IInspectable inspectable = target.GetComponent<IInspectable>();
-            if (inspectable != null) {
-                // Retrieve information from the model (target object)
-                Dictionary<string, string> info = inspectable.GetInfo();
+
+            if (target.TryGetComponent<IInspectable>(out IInspectable inspectable)) {
+                // Retrieve information from the target object
+                Dictionary<string, string> info  = inspectable.GetInfo();
 
                 // Pass the data to the UIManager to display it
-                if (uiManager != null) {
-                    uiManager.DisplayInfo(info);
+                if (gameManager.UIManager != null) {
+                    gameManager.UIManager.DisplayInfo(info);
                 } else {
-                    Debug.Log("uiManager is null");
+                    Debug.LogError("UIManager is null");
                 }
+
             } else {
-                Debug.Log("Target has no IInspectable component");
+                Debug.LogError("Target has no IInspectable component");
             }
+
         } else {
-            Debug.Log("Target is null");
+            Debug.LogError("Target is null");
         }
+
     }
     
     public void GainExperience(int amount) {
@@ -251,7 +270,7 @@ public class Player : Character {
         // Check left-click rotation
         if (Input.GetMouseButton(0)) {
             mouseX = Input.GetAxis("Mouse X");
-            Debug.Log($"Mathf.Abs(mouseX) = {Mathf.Abs(mouseX)}");
+            // Debug.Log($"Mathf.Abs(mouseX) = {Mathf.Abs(mouseX)}");
         }
 
         // Detect manual input for movement
@@ -296,7 +315,7 @@ public class Player : Character {
                     }
                 }
             } else {
-                Debug.Log("Player moving");
+                // Debug.Log("Player moving");
                 SetCameraLock(true);
             }
 
@@ -498,7 +517,7 @@ public class Player : Character {
                 if (defenseEffect != null) {
                     defenseEffect.Play();
                 } else {
-                    Debug.Log("defenceEffect is null");                
+                    Debug.LogError("defenceEffect is null");                
                 }
                 Debug.Log("Magic defense");
                 BoostArmourTemporarily(5, 5);
@@ -531,8 +550,19 @@ public class Player : Character {
 
     public override void Interact() {
         if (!IsCombatReady && target != null) {
-            // Placeholder for interaction logic (e.g., NPC dialogue, pickup item)
-            Debug.Log($"{CharacterName} is interacting.");
+
+            if (target.TryGetComponent<IInteractable>(out IInteractable interactable)) {
+                interactable.Interact(); // Trigger the interaction
+            } else {
+                Debug.Log($"{target.name} is not interactable.");
+            }
+
+            // IInteractable interactable = target.GetComponent<IInteractable>();
+            // if (interactable != null) {
+            //     interactable.Interact();
+            // } else {
+            //     Debug.Log($"{target.name} is not interactable.");
+            // }
         }
     }
 

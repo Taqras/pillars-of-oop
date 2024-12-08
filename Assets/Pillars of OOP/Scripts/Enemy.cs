@@ -1,12 +1,18 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Enemy : Character {
 
     private GameManager gameManager;
     private Animator animator;
     [SerializeField] private EnemyConfig enemyConfig;
+    // Encapsulation: The health bar's visibility is managed entirely within the Enemy class,
+    // ensuring external classes cannot directly manipulate the health bar state.
+    [SerializeField] private GameObject healthBarPrefab; // Assign in Inspector
+    private GameObject healthBarInstance; // Instance of the health bar
+    private Slider healthSlider; // Slider for updating health
     private float verticalVelocity = 0f;  // Tracks the vertical velocity of the character
     private float gravity = 20f;          // Gravity force applied when the character is not grounded
     private Vector3 roamingDirection;
@@ -41,22 +47,78 @@ public class Enemy : Character {
         // animator.enabled = false; // Temporarily disable
     }
 
-    private void Start()
-    {
+    private void Start() {
         MaxHealth = enemyConfig.MaxHealth;
         Health = MaxHealth;
         CharacterName = enemyConfig.characterName;
         Description = enemyConfig.description;
+        // Initialize the health bar but keep it hidden
+        if (healthBarPrefab != null) {
+            healthBarInstance = Instantiate(healthBarPrefab, transform);
+
+            // Position the health bar slightly above the enemy
+            Vector3 healthBarPosition = transform.position + new Vector3(0, 0.8f, 0);
+            healthBarInstance.transform.position = healthBarPosition;
+
+            healthBarInstance.SetActive(false);
+            healthSlider = healthBarInstance.GetComponentInChildren<Slider>();
+            if (healthSlider != null) {
+                healthSlider.value = (float)Health / MaxHealth;
+            } else {
+                Debug.LogError("healthSlider is null");
+            }
+        } else {
+            Debug.LogError("healthBarPrefab is null");
+        }
+
+        Debug.Log($"{gameObject.name} healthBarInstance: {healthBarInstance}");
+        Debug.Log($"{gameObject.name} health bar active state after SetActive(false): {healthBarInstance.activeSelf}");
+
         ChangeRoamingDirection();
     }
 
+    public void ShowHealthBar() {
+        if (healthBarInstance != null) {
+            healthBarInstance.SetActive(true);
+            Debug.Log($"{gameObject.name}: Health bar shown.");
+        } else{
+            Debug.LogError($"{gameObject.name}: healthBarInstance is null");
+        }
+    }
+
+    public void HideHealthBar() {
+        if (healthBarInstance != null) {
+            healthBarInstance.SetActive(false);
+            Debug.Log($"{gameObject.name}: Health bar hidden.");
+        } else{
+            Debug.LogError($"{gameObject.name}: healthBarInstance is null!");
+        }
+    }
+
     private void Update() {
+
+        // Update the health bar's rotation to face the camera
+        if (healthBarInstance != null && healthBarInstance.activeSelf) {
+            Camera mainCamera = Camera.main;
+            if (mainCamera != null) {
+                healthBarInstance.transform.LookAt(mainCamera.transform);
+                healthBarInstance.transform.Rotate(0, 180, 0); // Correct orientation
+            }
+
+            // Update the slider value
+            if (healthSlider != null) {
+                healthSlider.value = (float)Health / MaxHealth;
+            }
+
+        }
+
         if (isAggressive) {
             PursueAndAttack();
         } else {
             Move();
             CheckAggressionTrigger();
         }
+
     }
 
     private void BecomeAggressive(Transform newTarget) {
@@ -210,7 +272,12 @@ private void PursueAndAttack() {
     }
     
     public override void Interact() {
+        Debug.Log($"{CharacterName}Interacting");
         // Logic when Enemy interacts with Player
+        Player player = gameManager.GetActivePlayer();
+        if (player != null) {
+            BecomeAggressive(player.transform);
+        }
     }
 
        public override void Attack() {
@@ -259,7 +326,10 @@ private void PursueAndAttack() {
         // Trigger the GetHit animation
         animator.SetTrigger("takeDamage");
 
-        // Optional: Check for death or other post-hit conditions
+        if (healthBarInstance != null && healthSlider != null) {
+            healthSlider.value = (float)Health / MaxHealth;
+        }
+
         if (Health <= 0) {
             Die();
         }
@@ -275,7 +345,7 @@ private void PursueAndAttack() {
         gameManager.RemoveEnemyFromList(this.gameObject);
 
         // Give rewards to the player
-        Player player = FindObjectOfType<Player>();
+        Player player = gameManager.GetActivePlayer();
         if (player != null) {
             player.GainExperience(ExperienceReward);
             player.GainHealth(HealthReward);
