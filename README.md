@@ -34,4 +34,7 @@ The following assets were used in this project and are **licensed under Unity As
 - **Knight’s Sword** by IFox Studio  
 - **VILLAGE HOUSES PACK** by GBAndrewGB  
 - **Wintersweet Blade** by Chen Models  
-- **Wolf Animated** by DzenGames  
+- **Wolf Animated** by DzenGames
+
+## Current Status
+This project is no longer actively developed, but it served as a foundation for my ongoing MMORPG project (still in early development). I'm continuing my work in Unity and expanding into backend services with Node.js and Go.
